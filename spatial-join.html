@@ -1,0 +1,2581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Spatial Join</title>
+<style>
+:root{--bg:#0b0e13;--panel:#12161d;--line:#232a34;--text:#e6e8eb;--dim:#8b95a3;--acc:#6ea8fe;--warn:#f59e0b;--bad:#f87171}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,sans-serif}
+body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+body.scroll{height:auto;min-height:100dvh;overflow:auto}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand b{font-size:15px;letter-spacing:.2px}.brand span{color:var(--dim);font-size:12px;margin-left:8px}
+nav#demos{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-width:100%}
+nav#demos::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:transparent;color:var(--dim);padding:5px 11px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer}
+.chip[aria-pressed=true]{color:var(--text);border-color:var(--acc);background:rgba(110,168,254,.12)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.seg button{border:0;background:transparent;color:var(--dim);padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--acc);color:#0b0e13;font-weight:600}
+.seg button:disabled{opacity:.35;cursor:not-allowed}
+.spacer{flex:1}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);flex:none;cursor:pointer}
+main#explore{flex:1;display:flex;min-height:0}
+.stage{position:relative;flex:1;min-width:0;background:#0e1116;overflow:hidden}
+.stage .view{position:absolute;inset:0;touch-action:none;cursor:grab;overflow:hidden}
+.stage .view:focus-visible{outline-offset:-3px}
+.layer{position:absolute;left:0;top:0;pointer-events:none}
+.stage .dbgc{position:absolute;left:0;top:0;pointer-events:none}
+.stage .hud{position:absolute;right:10px;top:10px;margin:0;padding:8px 10px;font:11px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(11,14,19,.86);border:1px solid var(--line);border-radius:8px;pointer-events:none;white-space:pre;color:var(--dim)}
+.stage .hud b{color:var(--text);font-weight:600}
+.stage .hud i{font-style:normal;color:var(--warn)}
+.stage .mini{position:absolute;right:10px;bottom:10px;width:210px;height:136px;background:rgba(11,14,19,.92);border:1px solid var(--line);border-radius:8px;overflow:hidden;touch-action:none;cursor:crosshair}
+.stage .hint{position:absolute;left:10px;bottom:10px;color:var(--dim);font-size:12px;pointer-events:none;max-width:55%;background:rgba(11,14,19,.72);padding:4px 8px;border-radius:6px}
+.stage .hint:empty{display:none}
+aside#panel{width:340px;flex:none;border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:14px 16px 40px}
+.pane h2{margin:0 0 4px;font-size:17px}
+.pane h3{margin:18px 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.pane p{margin:0 0 10px;color:#c3c9d1;font-size:13px}
+.row{display:flex;align-items:center;gap:10px;margin:6px 0}
+.row>span{flex:1;font-size:13px;color:#c3c9d1}
+.row output{font:12px ui-monospace,monospace;color:var(--text);min-width:56px;text-align:right}
+label.row{cursor:pointer}
+.slider{display:block;margin:8px 0}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.btn{border:1px solid var(--line);background:#1a2029;color:var(--text);padding:6px 11px;border-radius:7px;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{border-color:#3a4452}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.pri{background:var(--acc);color:#0b0e13;border-color:var(--acc);font-weight:600}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.kv span:nth-child(odd){color:var(--dim)}
+.kv span:nth-child(even){font-family:ui-monospace,monospace;text-align:right}
+.legend{display:grid;grid-template-columns:26px 1fr;gap:7px 8px;font-size:13px;color:#c3c9d1;align-items:center}
+.sw{width:22px;height:14px;border-radius:3px;display:inline-block}
+.selbox{border:1px solid var(--line);border-radius:8px;padding:10px;background:#0f1319;font-size:13px}
+.selbox .muted{color:var(--dim)}
+details{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:12px 0;background:#0f1319}
+summary{cursor:pointer;font-size:13px;color:var(--text)}
+details ol{padding-left:18px;margin:8px 0 2px;color:#c3c9d1;font-size:12.5px}
+details li{margin-bottom:4px}
+code{font:12px ui-monospace,monospace;color:#cfe0ff}
+.foot{font-size:12px;color:var(--dim);margin-top:18px}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#1f2733;border:1px solid #3a4452;color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
+#toast.on{opacity:1}
+body.nohud .stage .hud{display:none}
+/* tutorial */
+#tutorial{display:flex;flex-direction:column;gap:12px;padding:14px 16px 0;flex:1;min-width:0}
+#tutorial[hidden]{display:none}
+.tut-top{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 16px}
+.tut-top .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.tut-top h2{margin:2px 0 0;font-size:19px}
+.tut-top select{background:#1a2029;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:5px 8px;font:inherit;font-size:13px;max-width:100%}
+.tut-work{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;height:58vh;min-height:420px}
+.tut-code{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;background:#0a0d12;min-width:0;min-height:0}
+.code-bar{display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.code-bar .note{font-size:12px;color:var(--dim);flex:1;min-width:120px}
+#code{flex:1;margin:0;overflow:auto;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:8px 0;counter-reset:ln;min-height:0;tab-size:2}
+#code .ln{display:block;white-space:pre;padding-right:14px;min-height:1.6em}
+#code .ln::before{counter-increment:ln;content:counter(ln);display:inline-block;width:3.4em;padding-right:12px;text-align:right;color:#4b5563;user-select:none}
+#code .hl{background:rgba(110,168,254,.09);box-shadow:inset 3px 0 0 var(--acc)}
+#code .hd{color:var(--warn);font-style:italic}
+#code .k{color:#c792ea}#code .s{color:#a5d6a7}#code .c{color:#6b7686;font-style:italic}#code .n{color:#f8c291}#code .f{color:#82aaff}
+.tut-result{display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+.tut-result .stage{flex:1;border:1px solid var(--line);border-radius:10px;min-height:260px}
+.expect{font-size:12.5px;color:var(--dim)}
+.expect b{color:var(--text);font-weight:600}
+.tut-comm{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:14px 16px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px 24px}
+.tut-comm p{font-size:13.5px}
+.tut-comm .try{border-left:3px solid var(--warn);padding:6px 10px;background:rgba(245,158,11,.06);border-radius:0 6px 6px 0;font-size:13px;color:#dfe3e8;margin:8px 0}
+.tut-comm .stats{font:12px ui-monospace,monospace;color:var(--dim);margin-top:8px}
+#tControls:empty{display:none}
+.tut-nav{position:sticky;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0 calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+.tut-nav .prog{flex:1;text-align:center;font-size:13px;color:var(--dim);min-width:90px}
+#selftest{padding:16px;overflow:auto}
+#selftest pre{font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap}
+@media (max-width:900px){
+  .tut-work{grid-template-columns:1fr;height:auto;min-height:0}
+  #code{max-height:46vh}
+  .tut-result .stage{flex:none;height:52vh}
+  .tut-comm{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  main#explore{flex-direction:column}
+  main#explore .stage{flex:none;height:58dvh}
+  aside#panel{width:auto;border-left:0;border-top:1px solid var(--line);flex:1}
+  .brand span{display:none}
+  .stage .mini{width:128px;height:86px}
+  .stage .hint{display:none}
+  .stage .hud{font-size:10px;padding:6px 8px}
+  header{padding:8px 10px}
+  #tutorial{padding:10px 10px 0}
+}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>Spatial Join</b><span>keyed records → spatial index → enter / update / exit → any backend</span></div>
+  <div class="seg" id="modes" role="group" aria-label="Mode">
+    <button type="button" data-mode="explore" aria-pressed="true">Explore</button><button type="button" data-mode="tutorial" aria-pressed="false">Tutorial</button>
+  </div>
+  <nav id="demos" aria-label="Examples"></nav>
+  <div class="spacer"></div>
+  <div class="seg" id="backends" role="group" aria-label="Rendering backend">
+    <button type="button" data-b="svg">SVG</button><button type="button" data-b="canvas">Canvas2D</button><button type="button" data-b="webgl">WebGL2</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="hudT" checked> stats</label>
+  <label class="chk"><input type="checkbox" id="dbg"> dirty rects</label>
+</header>
+<main id="explore">
+  <section class="stage" id="xStage">
+    <div class="view" tabindex="0" role="application"></div>
+    <canvas class="dbgc"></canvas>
+    <div class="mini" hidden aria-label="Minimap"></div>
+    <pre class="hud" aria-hidden="true"></pre>
+    <div class="hint"></div>
+  </section>
+  <aside id="panel" class="pane" aria-label="Example controls"></aside>
+</main>
+<section id="tutorial" hidden aria-label="Tutorial">
+  <div class="tut-top">
+    <div><div class="eyebrow" id="tLesson"></div><h2 id="tTitle" tabindex="-1"></h2></div>
+    <div class="spacer"></div>
+    <label class="chk">Step <select id="tSteps" aria-label="Jump to step"></select></label>
+  </div>
+  <div class="tut-work">
+    <div class="tut-code">
+      <div class="code-bar">
+        <div class="seg" id="codeMode" role="group" aria-label="Code view">
+          <button type="button" data-m="step" aria-pressed="true">This step</button><button type="button" data-m="all" aria-pressed="false">Complete example</button>
+        </div>
+        <span class="note" id="codeNote"></span>
+        <button type="button" class="btn" id="copyCode">Copy step</button>
+      </div>
+      <pre id="code" tabindex="0" aria-label="Source code for this step"></pre>
+    </div>
+    <div class="tut-result">
+      <section class="stage" id="tStage">
+        <div class="view" tabindex="0" role="application"></div>
+        <canvas class="dbgc"></canvas>
+        <div class="mini" hidden aria-label="Minimap"></div>
+        <pre class="hud" aria-hidden="true"></pre>
+        <div class="hint"></div>
+      </section>
+      <div class="expect" id="tExpect"></div>
+    </div>
+  </div>
+  <div class="tut-comm pane">
+    <div id="tExplain"></div>
+    <div id="tControls"></div>
+  </div>
+  <div class="tut-nav">
+    <button type="button" class="btn" id="tPrev">Previous</button>
+    <button type="button" class="btn" id="tReset">Reset step</button>
+    <span class="prog" id="tProg"></span>
+    <button type="button" class="btn" id="tCam">Reset camera</button>
+    <button type="button" class="btn pri" id="tNext">Next</button>
+  </div>
+</section>
+<section id="selftest" hidden aria-label="Self-test"><h2>Self-test</h2><pre id="stOut">running…</pre></section>
+<div id="toast" role="status"></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+<script>
+'use strict';
+/*@engine:start*/
+/* =====================================================================
+   SPATIAL JOIN — a retained, spatially-indexed scene with one update
+   primitive (the join), decoupled from its rendering backend.
+
+   Scene   : keyed records (marks) with versions. A mark may depend on
+             others (at / from / to). Changes are applied in batches and
+             dependents resolve once, in topological order.
+   Index   : uniform grid or loose quadtree over each mark's bounds.
+   View    : camera + region. Each frame it joins "what the index says is
+             in my region at my zoom" against "what my backend holds":
+             enter / update / exit, plus dirty world rects.
+   Backend : implements enter / update / exit / commit. Nothing else.
+
+   Paint contract (all backends, and picking): marks paint in ascending
+   (z, order, creation sequence). Text is ordinary content in that order.
+   ===================================================================== */
+
+const FONT = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, sans-serif';
+const C = { text:'#e6e8eb', dim:'#8b95a3', acc:'#6ea8fe', red:'#f87171', line:'#2a313c' };
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const zOf = m => { const z = m.z|0; return z<0?0:z>9?9:z; };
+const ordOf = r => (r.m.order ?? r.seq);
+/** Canonical paint order: negative when a paints below b. */
+const cmpPaint = (a,b) => zOf(a.m)-zOf(b.m) || ordOf(a)-ordOf(b) || a.seq-b.seq;
+const fmtN = n => n.toLocaleString('en-US');
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function gauss(r){ const u=r()||1e-9, v=r(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+const isEditable = el => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+
+/* ---------- bounds ---------- */
+const hits = (a,b) => a.x0<=b.x1 && a.x1>=b.x0 && a.y0<=b.y1 && a.y1>=b.y0;
+const contains = (o,i) => i.x0>=o.x0 && i.x1<=o.x1 && i.y0>=o.y0 && i.y1<=o.y1;
+const unionB = (a,b) => !a?b:!b?a:({x0:Math.min(a.x0,b.x0),y0:Math.min(a.y0,b.y0),x1:Math.max(a.x1,b.x1),y1:Math.max(a.y1,b.y1)});
+const areaB = a => Math.max(0,a.x1-a.x0)*Math.max(0,a.y1-a.y0);
+const finiteB = b => !!b && Number.isFinite(b.x0) && Number.isFinite(b.y0) && Number.isFinite(b.x1) && Number.isFinite(b.y1);
+
+/* ---------- validation (development assertions on authored data) ---------- */
+const NUM_KEYS = ['x','y','w','h','r','sw','size','order'];
+function checkMark(id,m){
+  if(!m || typeof m.kind!=='string') throw new Error(`mark ${id}: missing kind`);
+  for(const k of NUM_KEYS) if(m[k]!=null && !Number.isFinite(m[k])) throw new Error(`mark ${id}: ${k} is not finite`);
+  if(m.pts) for(const v of m.pts) if(!Number.isFinite(v)) throw new Error(`mark ${id}: non-finite path point`);
+  for(const e of [m.at,m.from,m.to]) if(e) for(const k of ['x','y','dx','dy','ox','oy']) if(e[k]!=null && !Number.isFinite(e[k])) throw new Error(`mark ${id}: non-finite ${k}`);
+}
+
+/* ---------- colors (for WebGL) ---------- */
+const colorCache = new Map();
+const cctx = document.createElement('canvas').getContext('2d');
+function rgba(c){
+  if(!c || c==='none') return [0,0,0,0];
+  let v = colorCache.get(c); if(v) return v;
+  cctx.fillStyle = '#000'; cctx.fillStyle = c; const s = cctx.fillStyle;
+  if(s[0]==='#') v = [parseInt(s.slice(1,3),16)/255, parseInt(s.slice(3,5),16)/255, parseInt(s.slice(5,7),16)/255, 1];
+  else { const m = s.match(/[\d.]+/g).map(Number); v = [m[0]/255,m[1]/255,m[2]/255, m.length>3?m[3]:1]; }
+  colorCache.set(c,v); return v;
+}
+
+/* ---------- text measurement: real glyph bounds, cached ---------- */
+const TM = new Map();
+const mctx = document.createElement('canvas').getContext('2d');
+mctx.textBaseline = 'middle'; mctx.textAlign = 'left';
+/** Box of `text` drawn at the origin with middle baseline, left aligned, in world units. */
+function textBox(text,size,weight){
+  const k = weight+'|'+size+'|'+text; let v = TM.get(k); if(v) return v;
+  mctx.font = `${weight} ${size}px ${FONT}`; const t = mctx.measureText(text);
+  const l = Number.isFinite(t.actualBoundingBoxLeft) ? t.actualBoundingBoxLeft : 0;
+  const r = Number.isFinite(t.actualBoundingBoxRight) ? t.actualBoundingBoxRight : t.width;
+  const asc = Number.isFinite(t.actualBoundingBoxAscent) ? t.actualBoundingBoxAscent : size*0.8;
+  const desc = Number.isFinite(t.actualBoundingBoxDescent) ? t.actualBoundingBoxDescent : size*0.3;
+  v = { adv:t.width, l:Math.max(l,0), r:Math.max(r,t.width), asc:Math.max(asc,size*0.5), desc:Math.max(desc,size*0.25) };
+  if(TM.size>8000) TM.clear(); TM.set(k,v); return v;
+}
+if(document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', ()=>TM.clear());
+const alignShift = (align,adv) => align==='center' ? -adv/2 : align==='right' ? -adv : 0;
+/** Conservative bounds of a text run at (x,y); pad covers SVG/Canvas baseline differences. */
+function textBounds(text,size,weight,align,x,y){
+  const t = textBox(String(text),size,weight), ax = x+alignShift(align,t.adv), pad = 1+size*0.12;
+  return {x0:ax-t.l-pad, y0:y-t.asc-pad, x1:ax+t.r+pad, y1:y+t.desc+pad};
+}
+
+/* ---------- polyline geometry ---------- */
+function cumLens(p){ const n=p.length>>1, L=new Float64Array(Math.max(n,1)); for(let i=1;i<n;i++) L[i]=L[i-1]+Math.hypot(p[2*i]-p[2*i-2],p[2*i+1]-p[2*i-1]); return L; }
+function pointAt(p,L,t){
+  const n=p.length>>1; if(n<2) return [p[0]||0,p[1]||0];
+  const d=clamp(t,0,1)*L[n-1]; let i=1; while(i<n-1 && L[i]<d) i++;
+  const seg=(L[i]-L[i-1])||1, f=clamp((d-L[i-1])/seg,0,1);
+  return [p[2*i-2]+(p[2*i]-p[2*i-2])*f, p[2*i-1]+(p[2*i+1]-p[2*i-1])*f];
+}
+function trimPts(p,s,e){
+  if(!(s>0) && !(e>0)) return p;
+  const L=cumLens(p), n=p.length>>1, tot=L[n-1]; s=s||0; e=e||0;
+  if(tot <= s+e+1) return p;
+  const a=s, b=tot-e, out=[]; const A=pointAt(p,L,a/tot); out.push(A[0],A[1]);
+  for(let i=1;i<n-1;i++) if(L[i]>a && L[i]<b) out.push(p[2*i],p[2*i+1]);
+  const B=pointAt(p,L,b/tot); out.push(B[0],B[1]); return out;
+}
+function cubic(ax,ay,bx,by,cx,cy,dx,dy,n){ const o=[]; for(let i=0;i<=n;i++){ const t=i/n,u=1-t,w0=u*u*u,w1=3*u*u*t,w2=3*u*t*t,w3=t*t*t; o.push(w0*ax+w1*bx+w2*cx+w3*dx, w0*ay+w1*by+w2*cy+w3*dy);} return o; }
+function quad(ax,ay,bx,by,cx,cy,n){ const o=[]; for(let i=0;i<=n;i++){ const t=i/n,u=1-t,w0=u*u,w1=2*u*t,w2=t*t; o.push(w0*ax+w1*bx+w2*cx, w0*ay+w1*by+w2*cy);} return o; }
+function arrowHead(p,size){
+  const n=p.length>>1; if(n<2) return null; const tx=p[2*n-2], ty=p[2*n-1];
+  let k=n-2; while(k>=0 && Math.hypot(p[2*k]-tx,p[2*k+1]-ty)<1e-3) k--; if(k<0) return null;
+  let dx=tx-p[2*k], dy=ty-p[2*k+1]; const l=Math.hypot(dx,dy); dx/=l; dy/=l;
+  const a=0.5, cs=Math.cos(a), sn=Math.sin(a), bx=-dx, by=-dy;
+  return [tx+(bx*cs-by*sn)*size, ty+(bx*sn+by*cs)*size, tx, ty, tx+(bx*cs+by*sn)*size, ty+(-bx*sn+by*cs)*size];
+}
+/** Orthogonal route that leaves A along A.d and arrives at B from outside B.d (both horizontal). */
+function orthoRoute(A,B,g){
+  const sA = A.d[0] ? Math.sign(A.d[0]) : 1, sB = B.d[0] ? Math.sign(B.d[0]) : -1;
+  const x1 = A.x+sA*g, x2 = B.x+sB*g;
+  if(sA===sB){ const x = sA>0 ? Math.max(x1,x2) : Math.min(x1,x2); return [A.x,A.y, x,A.y, x,B.y, B.x,B.y]; }
+  const clear = sA>0 ? x2>=x1 : x2<=x1;
+  if(clear) return [A.x,A.y, x1,A.y, x1,B.y, B.x,B.y];
+  const my=(A.y+B.y)/2; return [A.x,A.y, x1,A.y, x1,my, x2,my, x2,B.y, B.x,B.y];
+}
+function route(m,A,B){
+  const kind=m.route||'straight'; let pts;
+  if(kind==='bezier'){
+    const dist=Math.hypot(B.x-A.x,B.y-A.y), k=Math.max(30,dist*0.45), sg=Math.sign(B.x-A.x)||1;
+    const d1=(A.d[0]||A.d[1])?A.d:[sg,0], d2=(B.d[0]||B.d[1])?B.d:[-sg,0];
+    pts=cubic(A.x,A.y,A.x+d1[0]*k,A.y+d1[1]*k,B.x+d2[0]*k,B.y+d2[1]*k,B.x,B.y,24);
+  } else if(kind==='curve'){
+    const bend=m.bend??0.2, mx=(A.x+B.x)/2, my=(A.y+B.y)/2, dx=B.x-A.x, dy=B.y-A.y;
+    pts=quad(A.x,A.y,mx-dy*bend,my+dx*bend,B.x,B.y,18);
+  } else if(kind==='ortho') pts=orthoRoute(A,B,m.gap||12);
+  else pts=[A.x,A.y,B.x,B.y];
+  return trimPts(pts,m.trimStart,m.trimEnd);
+}
+const dirOfPort = p => p==='l'?[-1,0]:p==='r'?[1,0]:p==='t'?[0,-1]:p==='b'?[0,1]:[0,0];
+
+/** Visual bounds: geometry plus any embedded label. Used for index, culling and damage. */
+function markBounds(m,x,y){
+  let b=null;
+  switch(m.kind){
+    case 'rect': { const p=(m.sw||0)/2; b={x0:x-p,y0:y-p,x1:x+(m.w||0)+p,y1:y+(m.h||0)+p}; break; }
+    case 'circle': { const r=(m.r||0)+(m.sw||0)/2; b={x0:x-r,y0:y-r,x1:x+r,y1:y+r}; break; }
+    case 'text': return textBounds(m.text??'',m.size||12,m.weight||400,m.align||'left',x,y);
+    default: return null;
+  }
+  if(m.label!=null && m.label!==''){
+    const cx = m.kind==='rect' ? x+(m.w||0)/2 : x, cy = m.kind==='rect' ? y+(m.h||0)/2 : y;
+    b = unionB(b, textBounds(m.label, m.labelSize||12, m.labelWeight||600, 'center', cx, cy));
+  }
+  return b;
+}
+function ptsBounds(p,head,pad){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const f=a=>{ for(let i=0;i<a.length;i+=2){ const x=a[i],y=a[i+1]; if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } };
+  f(p); if(head) f(head); if(x0===Infinity) return null;
+  return {x0:x0-pad,y0:y0-pad,x1:x1+pad,y1:y1+pad};
+}
+function segDist(px,py,ax,ay,bx,by){ const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy; const t=l?clamp(((px-ax)*dx+(py-ay)*dy)/l,0,1):0; return Math.hypot(px-ax-dx*t,py-ay-dy*t); }
+
+/* =====================================================================
+   SPATIAL INDEXES — same interface: update(id,b) remove(id) query(q,cb)
+   ===================================================================== */
+
+/** Uniform grid. Cheap updates; weak when mark sizes or density vary a lot. */
+class Grid{
+  constructor(cs=256){ this.kind='grid'; this.cs=cs; this.cells=new Map(); this.items=new Map(); this.big=new Map(); }
+  get size(){ return this.items.size; }
+  key(cx,cy){ return (cx+524288)*1048576+(cy+524288); }
+  update(id,b){
+    if(!finiteB(b)){ this.remove(id); return; }
+    const cs=this.cs, cx0=Math.floor(b.x0/cs), cy0=Math.floor(b.y0/cs), cx1=Math.floor(b.x1/cs), cy1=Math.floor(b.y1/cs);
+    const isBig=(cx1-cx0+1)*(cy1-cy0+1)>64 || Math.abs(cx0)>500000 || Math.abs(cy0)>500000 || Math.abs(cx1)>500000 || Math.abs(cy1)>500000;
+    const e=this.items.get(id);
+    if(e && !e.big && !isBig && e.cx0===cx0 && e.cy0===cy0 && e.cx1===cx1 && e.cy1===cy1){ e.b=b; return; }
+    if(e && e.big && isBig){ e.b=b; this.big.set(id,b); return; }
+    this.remove(id);
+    if(isBig){ this.big.set(id,b); this.items.set(id,{big:true,b}); return; }
+    for(let cx=cx0;cx<=cx1;cx++) for(let cy=cy0;cy<=cy1;cy++){ const k=this.key(cx,cy); let c=this.cells.get(k); if(!c) this.cells.set(k,c=new Set()); c.add(id); }
+    this.items.set(id,{b,cx0,cy0,cx1,cy1});
+  }
+  remove(id){
+    const e=this.items.get(id); if(!e) return;
+    if(e.big) this.big.delete(id);
+    else for(let cx=e.cx0;cx<=e.cx1;cx++) for(let cy=e.cy0;cy<=e.cy1;cy++){ const k=this.key(cx,cy), c=this.cells.get(k); if(c){ c.delete(id); if(!c.size) this.cells.delete(k); } }
+    this.items.delete(id);
+  }
+  query(q,cb){
+    for(const [id,b] of this.big) if(hits(b,q)) cb(id);
+    const cs=this.cs, cx0=Math.floor(q.x0/cs), cy0=Math.floor(q.y0/cs), cx1=Math.floor(q.x1/cs), cy1=Math.floor(q.y1/cs);
+    const n=(cx1-cx0+1)*(cy1-cy0+1);
+    if(!(n<=this.cells.size)){ for(const [id,e] of this.items) if(!e.big && hits(e.b,q)) cb(id); return; }
+    const seen=new Set();
+    for(let cx=cx0;cx<=cx1;cx++) for(let cy=cy0;cy<=cy1;cy++){
+      const c=this.cells.get(this.key(cx,cy)); if(!c) continue;
+      for(const id of c){ if(seen.has(id)) continue; seen.add(id); if(hits(this.items.get(id).b,q)) cb(id); }
+    }
+  }
+}
+
+/** Loose quadtree. Each mark lives in exactly one node: the deepest one that
+    contains its centre and is at least as large as the mark. Node bounds are
+    "loose" (grown by half their size) so a mark never straddles a boundary.
+    The root grows outward on demand, so the canvas stays unbounded. */
+class LooseQuadtree{
+  constructor(minSize=48){ this.kind='quadtree'; this.root=null; this.items=new Map(); this.minSize=minSize; }
+  get size(){ return this.items.size; }
+  _mk(x0,y0,s,parent){ return {x0,y0,s,ids:new Set(),kids:null,n:0,parent}; }
+  _in(N,cx,cy){ return cx>=N.x0 && cx<N.x0+N.s && cy>=N.y0 && cy<N.y0+N.s; }
+  _cover(cx,cy,ext){
+    if(!this.root){ let s=4096; while(s<ext) s*=2; this.root=this._mk(Math.floor(cx/s)*s, Math.floor(cy/s)*s, s, null); }
+    let R=this.root;
+    while((!this._in(R,cx,cy) || ext>R.s) && R.s<1e13){
+      const nx=cx<R.x0?R.x0-R.s:R.x0, ny=cy<R.y0?R.y0-R.s:R.y0, N=this._mk(nx,ny,R.s*2,null);
+      N.kids=[null,null,null,null]; N.kids[(R.x0>nx?1:0)+(R.y0>ny?2:0)]=R; R.parent=N; N.n=R.n; this.root=R=N;
+    }
+    return R;
+  }
+  update(id,b){
+    if(!finiteB(b)){ this.remove(id); return; }
+    const cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2, ext=Math.max(b.x1-b.x0,b.y1-b.y0,1e-6);
+    const e=this.items.get(id);
+    if(e){
+      const N=e.node;
+      if(this._in(N,cx,cy) && ext<=N.s && (ext>N.s/2 || N.s/2<this.minSize)){ e.b=b; return; }
+      this._rm(N,id);
+    }
+    let N=this._cover(cx,cy,ext);
+    while(N.s/2>=this.minSize && ext<=N.s/2){
+      const h=N.s/2, qi=(cx>=N.x0+h?1:0)+(cy>=N.y0+h?2:0);
+      if(!N.kids) N.kids=[null,null,null,null];
+      N=N.kids[qi] || (N.kids[qi]=this._mk(N.x0+(qi&1)*h, N.y0+(qi>>1)*h, h, N));
+    }
+    N.ids.add(id); for(let P=N;P;P=P.parent) P.n++;
+    this.items.set(id,{b,node:N});
+  }
+  /** Every mark in N's subtree lies inside N's loose bounds, so no per-item test is needed. */
+  _all(N,cb){ const st=[N]; while(st.length){ const M=st.pop(); if(!M.n) continue; for(const id of M.ids) cb(id); if(M.kids) for(const K of M.kids) if(K) st.push(K); } }
+  _rm(N,id){ if(N.ids.delete(id)) for(let P=N;P;P=P.parent) P.n--; }
+  remove(id){ const e=this.items.get(id); if(!e) return; this._rm(e.node,id); this.items.delete(id); }
+  query(q,cb){
+    if(!this.root) return; const st=[this.root];
+    while(st.length){
+      const N=st.pop(); if(!N.n) continue; const h=N.s/2;
+      if(N.x0-h>q.x1 || N.x0+N.s+h<q.x0 || N.y0-h>q.y1 || N.y0+N.s+h<q.y0) continue;
+      if(N.x0-h>=q.x0 && N.x0+N.s+h<=q.x1 && N.y0-h>=q.y0 && N.y0+N.s+h<=q.y1){ this._all(N,cb); continue; }
+      for(const id of N.ids){ if(hits(this.items.get(id).b,q)) cb(id); }
+      if(N.kids) for(const K of N.kids) if(K) st.push(K);
+    }
+  }
+}
+const makeIndex = kind => kind==='quadtree' ? new LooseQuadtree() : new Grid(256);
+
+/* =====================================================================
+   SCENE — keyed, versioned records.
+   - Mutations inside scene.batch(fn) are collected; at the end of the
+     outermost batch every affected record (the sources plus everything
+     that transitively depends on them) resolves exactly once, after its
+     prerequisites, and is logged once. set/patch/remove outside a batch
+     are one-operation batches.
+   - A relationship that would create a dependency cycle is rejected
+     before anything changes.
+   - remove(id) cascades: records that depend on id are removed with it.
+   - Replacing a record with a different kind bumps its generation, which
+     views treat as exit + enter so backends never reuse a stale shape.
+   ===================================================================== */
+class Scene{
+  constructor(opts={}){
+    this.recs=new Map(); this.index=makeIndex(opts.index||'grid'); this.deps=new Map();
+    this.log=[]; this.logBase=0; this.clock=0; this.seq=0; this.views=new Set();
+    this.depth=0; this.pending=new Set(); this.onChange=null; this.stats={resolves:0,batches:0};
+  }
+  get indexKind(){ return this.index.kind; }
+  setIndex(kind){
+    if(kind===this.index.kind) return;
+    const ix=makeIndex(kind); for(const r of this.recs.values()) if(r.b) ix.update(r.id,r.b);
+    this.index=ix; for(const v of this.views) v.forceJoin=true; if(this.onChange) this.onChange();
+  }
+  get(id){ const r=this.recs.get(id); return r?r.m:undefined; }
+  has(id){ return this.recs.has(id); }
+  batch(fn){ this.depth++; try{ return fn(); } finally{ if(--this.depth===0) this._flush(); } }
+  _depIds(m){ const a=[]; for(const e of [m.at,m.from,m.to]) if(e && e.id!=null) a.push(e.id); return a.length>1?[...new Set(a)]:a; }
+  /** Would making `id` depend on the ids in `on` close a cycle? */
+  wouldCycle(id,on){
+    if(!on.length) return false; const want=new Set(on); if(want.has(id)) return true;
+    const st=[id], seen=new Set();
+    while(st.length){ const x=st.pop(); if(seen.has(x)) continue; seen.add(x); const s=this.deps.get(x); if(s) for(const d of s){ if(want.has(d)) return true; st.push(d); } }
+    return false;
+  }
+  set(id,m){
+    checkMark(id,m); const on=this._depIds(m);
+    if(this.wouldCycle(id,on)) throw new Error(`scene: ${id} would create a dependency cycle`);
+    return this.batch(()=>{
+      let r=this.recs.get(id);
+      if(r){ this._unlink(r); if(r.m.kind!==m.kind) r.gen++; }
+      else { r={id,m:null,ver:0,gen:0,seq:++this.seq,x:0,y:0,b:null,depOn:null,pts:null,head:null,lens:null}; this.recs.set(id,r); }
+      r.m=m; this._link(r,on); this.pending.add(id); return r;
+    });
+  }
+  patch(id,p){
+    const r=this.recs.get(id); if(!r) return;
+    checkMark(id,Object.assign({kind:r.m.kind},p));
+    const relink=('at' in p)||('from' in p)||('to' in p);
+    let on=null; if(relink){ on=this._depIds({...r.m,...p}); if(this.wouldCycle(id,on)) throw new Error(`scene: ${id} would create a dependency cycle`); }
+    this.batch(()=>{ if(relink) this._unlink(r); Object.assign(r.m,p); if(relink) this._link(r,on); if('kind' in p) r.gen++; this.pending.add(id); });
+  }
+  remove(id){
+    if(!this.recs.has(id)) return;
+    this.batch(()=>{
+      const st=[id], out=new Set();
+      while(st.length){ const x=st.pop(); if(out.has(x)||!this.recs.has(x)) continue; out.add(x); const s=this.deps.get(x); if(s) for(const d of s) st.push(d); }
+      for(const x of out){ const r=this.recs.get(x); this._unlink(r); this.recs.delete(x); this.index.remove(x); this.pending.delete(x); this.log.push(x); }
+      for(const x of out) this.deps.delete(x);
+    });
+    if(this.onChange) this.onChange();
+  }
+  clearAll(){
+    for(const id of this.recs.keys()) this.log.push(id);
+    this.recs.clear(); this.deps.clear(); this.pending.clear(); this.index=makeIndex(this.index.kind);
+    if(this.onChange) this.onChange();
+  }
+  _link(r,on){ r.depOn=on; for(const d of on){ let s=this.deps.get(d); if(!s) this.deps.set(d,s=new Set()); s.add(r.id); } }
+  _unlink(r){ if(!r.depOn) return; for(const d of r.depOn){ const s=this.deps.get(d); if(s){ s.delete(r.id); if(!s.size) this.deps.delete(d); } } r.depOn=null; }
+  _flush(){
+    if(!this.pending.size) return;
+    this.stats.batches++;
+    const aff=new Set(), st=[...this.pending]; this.pending.clear();
+    while(st.length){ const x=st.pop(); if(aff.has(x)||!this.recs.has(x)) continue; aff.add(x); const s=this.deps.get(x); if(s) for(const d of s) st.push(d); }
+    const indeg=new Map();
+    for(const x of aff){ let n=0; for(const d of this.recs.get(x).depOn) if(aff.has(d)) n++; indeg.set(x,n); }
+    const q=[]; for(const [x,n] of indeg) if(!n) q.push(x);
+    for(let i=0;i<q.length;i++){
+      const x=q[i], r=this.recs.get(x);
+      r.ver=++this.clock; this._resolve(r); this.index.update(x,r.b); this.log.push(x); this.stats.resolves++;
+      const s=this.deps.get(x); if(s) for(const d of s) if(aff.has(d)){ const n=indeg.get(d)-1; indeg.set(d,n); if(!n) q.push(d); }
+    }
+    if(q.length<aff.size) console.error('scene: unresolved cycle during flush');
+    if(this.onChange) this.onChange();
+  }
+  anchorOf(tr,port){
+    const m=tr.m, x=tr.x, y=tr.y;
+    if(tr.pts){ const t = port==='mid'?0.5 : (port && typeof port==='object' && 't' in port)?port.t : 0; return pointAt(tr.pts,tr.lens,t); }
+    if(m.kind==='rect'){ const w=m.w,h=m.h; switch(port){
+      case 'l':return[x,y+h/2]; case 'r':return[x+w,y+h/2]; case 't':return[x+w/2,y]; case 'b':return[x+w/2,y+h];
+      case 'c':return[x+w/2,y+h/2]; case 'bl':return[x,y+h]; case 'br':return[x+w,y+h]; case 'tr':return[x+w,y]; default:return[x,y]; } }
+    if(m.kind==='circle'){ const r=m.r; switch(port){ case 'l':return[x-r,y]; case 'r':return[x+r,y]; case 't':return[x,y-r]; case 'b':return[x,y+r]; default:return[x,y]; } }
+    return [x,y];
+  }
+  _end(s){
+    if(!s) return null;
+    if(s.id!=null){ const tr=this.recs.get(s.id); if(!tr||!tr.b) return null; const p=this.anchorOf(tr,s.port); return {x:p[0]+(s.ox||0),y:p[1]+(s.oy||0),d:s.dir||dirOfPort(s.port)}; }
+    return {x:s.x,y:s.y,d:s.dir||[0,0]};
+  }
+  _resolve(r){
+    const m=r.m; r.pts=null; r.head=null; r.lens=null;
+    if(m.kind==='link'||m.kind==='path'){
+      let pts;
+      if(m.kind==='path') pts=m.pts;
+      else { const A=this._end(m.from), B=this._end(m.to); if(!A||!B){ r.b=null; return; } pts=route(m,A,B); }
+      if(!pts||pts.length<4){ r.b=null; return; }
+      r.pts=pts; r.lens=cumLens(pts); if(m.arrow) r.head=arrowHead(pts,m.arrowSize||8);
+      r.b=ptsBounds(pts,r.head,(m.sw||1)/2+1);
+    } else {
+      let x=m.x||0, y=m.y||0;
+      if(m.at){ const tr=this.recs.get(m.at.id); if(!tr||!tr.b){ r.b=null; return; } const p=this.anchorOf(tr,m.at.port); x=p[0]+(m.at.dx||0); y=p[1]+(m.at.dy||0); }
+      r.x=x; r.y=y; r.b=markBounds(m,x,y);
+    }
+    if(r.b && !finiteB(r.b)) r.b=null;
+  }
+  /** Topmost pickable mark under a world point, in paint order. */
+  hitTest(view,wx,wy){
+    const tol=6/view.cam.s, q={x0:wx-tol,y0:wy-tol,x1:wx+tol,y1:wy+tol}; let best=null;
+    this.index.query(q,id=>{
+      const r=this.recs.get(id); if(!r||!r.m.data||!view.held.has(id)||!hitGeom(r,wx,wy,tol)) return;
+      if(!best || cmpPaint(r,best)>0) best=r;
+    });
+    return best;
+  }
+  compact(){
+    if(this.log.length<20000) return;
+    let min=this.logBase+this.log.length; for(const v of this.views) min=Math.min(min,v.cursor);
+    const drop=min-this.logBase; if(drop>0){ this.log=this.log.slice(drop); this.logBase+=drop; }
+  }
+}
+function hitGeom(r,x,y,tol){
+  const m=r.m;
+  switch(m.kind){
+    case 'rect': return x>=r.x-tol&&x<=r.x+m.w+tol&&y>=r.y-tol&&y<=r.y+m.h+tol;
+    case 'circle': return Math.hypot(x-r.x,y-r.y)<=m.r+tol;
+    case 'text': return x>=r.b.x0-tol&&x<=r.b.x1+tol&&y>=r.b.y0-tol&&y<=r.b.y1+tol;
+    default: { const p=r.pts; if(!p) return false; const w=(m.sw||1)/2+tol; for(let i=0;i+3<p.length;i+=2) if(segDist(x,y,p[i],p[i+1],p[i+2],p[i+3])<=w) return true; return false; }
+  }
+}
+
+/* =====================================================================
+   VIEW — the join. Region = screen + margin. Three paths per frame:
+     full        camera left the region or zoom changed → query & diff
+     transform   camera moved inside the region → backend re-transforms
+     incremental scene changed → visit the change log only
+   A record replaced under the same key (new record or new generation)
+   is sent to the backend as exit + enter.
+   ===================================================================== */
+class View{
+  constructor(scene,host,name,backend,opts={}){
+    this.scene=scene; this.host=host; this.name=name; this.filter=opts.filter||null; this.margin=opts.margin??0.35;
+    this.cam={x:0,y:0,s:1}; this.w=1; this.h=1; this.held=new Map(); this.region={x0:0,y0:0,x1:0,y1:0}; this.regionS=-1;
+    this.cursor=scene.logBase+scene.log.length; this.camDirty=true; this.forceJoin=true; this.onLost=null;
+    this.stats={en:0,up:0,ex:0,ms:0,mode:'—'}; this.frameMode='idle'; this.acc={en:0,up:0,ex:0}; this.persec={en:0,up:0,ex:0}; this.lastDirty=[];
+    this.be=null; scene.views.add(this); this.setBackend(backend);
+  }
+  /** Builds the new backend first; if that throws, the current one stays. */
+  setBackend(n){
+    const nb=new BACKENDS[n](this);
+    if(this.be) this.be.destroy();
+    this.be=nb; this.backendName=n; this.held.clear(); this.resize(); this.forceJoin=true; this.wake();
+  }
+  wake(){ if(this.scene.onChange) this.scene.onChange(); }
+  resize(){ const r=this.host.getBoundingClientRect(); this.w=Math.max(1,r.width); this.h=Math.max(1,r.height); if(this.be) this.be.resize(this.w,this.h); this.camDirty=true; this.forceJoin=true; this.wake(); }
+  setCam(x,y,s){
+    if(!(Number.isFinite(x)&&Number.isFinite(y)&&Number.isFinite(s)&&s>0)) return;
+    this.cam.x=x; this.cam.y=y; this.cam.s=s; this.camDirty=true; this.wake();
+  }
+  toWorld(sx,sy){ return [this.cam.x+sx/this.cam.s, this.cam.y+sy/this.cam.s]; }
+  toScreen(wx,wy){ return [(wx-this.cam.x)*this.cam.s, (wy-this.cam.y)*this.cam.s]; }
+  screenRect(){ const c=this.cam; return {x0:c.x,y0:c.y,x1:c.x+this.w/c.s,y1:c.y+this.h/c.s}; }
+  zoomAt(sx,sy,f){ const [wx,wy]=this.toWorld(sx,sy), s=clamp(this.cam.s*f,0.004,8); this.setCam(wx-sx/s,wy-sy/s,s); }
+  fit(b,pad=30){ if(!finiteB(b)) return; const bw=Math.max(1,b.x1-b.x0), bh=Math.max(1,b.y1-b.y0); const s=clamp(Math.min((this.w-2*pad)/bw,(this.h-2*pad)/bh),0.004,4); this.setCam((b.x0+b.x1)/2-this.w/2/s,(b.y0+b.y1)/2-this.h/2/s,s); }
+  passes(r){
+    const m=r.m; if(!r.b) return false;
+    if(m.only && m.only!==this.name) return false;
+    if(m.minScale && this.cam.s<m.minScale) return false;
+    if(m.maxScale && this.cam.s>m.maxScale) return false;
+    if(this.filter && !this.filter(r)) return false;
+    return true;
+  }
+  _enter(r){ this.be.enter(r); this.held.set(r.id,{ver:r.ver,gen:r.gen,rec:r,b:r.b}); }
+  frame(){
+    const sc=this.scene, be=this.be, t0=performance.now(), logEnd=sc.logBase+sc.log.length;
+    let en=0,up=0,ex=0,mode='idle'; const dirty=[]; const scr=this.screenRect();
+    const full=this.forceJoin || (this.camDirty && !(this.cam.s===this.regionS && contains(this.region,scr)));
+    if(full){
+      const mx=(scr.x1-scr.x0)*this.margin, my=(scr.y1-scr.y0)*this.margin;
+      this.region={x0:scr.x0-mx,y0:scr.y0-my,x1:scr.x1+mx,y1:scr.y1+my}; this.regionS=this.cam.s;
+      const want=[], ws=new Set();
+      sc.index.query(this.region,id=>{ const r=sc.recs.get(id); if(r&&this.passes(r)){ want.push(r); ws.add(id); } });
+      want.sort(cmpPaint);
+      for(const [id,h] of this.held) if(!ws.has(id)){ be.exit(id,h); this.held.delete(id); ex++; }
+      for(const r of want){
+        const h=this.held.get(r.id);
+        if(!h){ this._enter(r); en++; }
+        else if(h.rec!==r || h.gen!==r.gen){ be.exit(r.id,h); this._enter(r); ex++; en++; }
+        else if(h.ver!==r.ver){ be.update(r,h); h.ver=r.ver; h.b=r.b; up++; }
+      }
+      be.commit(null); mode='full';
+    } else {
+      if(this.cursor<logEnd){
+        const seen=new Set(), log=sc.log;
+        for(let i=this.cursor-sc.logBase;i<log.length;i++){
+          const id=log[i]; if(seen.has(id)) continue; seen.add(id);
+          const r=sc.recs.get(id), h=this.held.get(id), vis=!!r && this.passes(r) && hits(r.b,this.region);
+          if(vis && !h){ this._enter(r); dirty.push(r.b); en++; }
+          else if(vis && h){
+            if(h.rec!==r || h.gen!==r.gen){ dirty.push(h.b,r.b); be.exit(id,h); this._enter(r); ex++; en++; }
+            else if(h.ver!==r.ver){ dirty.push(h.b,r.b); be.update(r,h); h.ver=r.ver; h.b=r.b; up++; }
+          }
+          else if(!vis && h){ dirty.push(h.b); be.exit(id,h); this.held.delete(id); ex++; }
+        }
+      }
+      if(this.camDirty){ be.commit(null); mode=(en+up+ex)?'transform+incremental':'transform'; }
+      else if(dirty.length){ be.commit(dirty); mode='incremental'; }
+    }
+    this.cursor=logEnd; this.camDirty=false; this.forceJoin=false; this.lastDirty=dirty; this.frameMode=mode;
+    if(mode!=='idle'){ this.stats={en,up,ex,ms:performance.now()-t0,mode}; this.acc.en+=en; this.acc.up+=up; this.acc.ex+=ex; }
+    return mode;
+  }
+  destroy(){ if(this.be) this.be.destroy(); this.be=null; this.scene.views.delete(this); }
+}
+
+/* =====================================================================
+   BACKENDS — each implements enter / update / exit / commit.
+   ===================================================================== */
+const SVGNS='http://www.w3.org/2000/svg';
+function sa(el,o){ for(const k in o) el.setAttribute(k,o[k]); }
+function pathD(r){
+  const p=r.pts; let d='M'+p[0].toFixed(2)+' '+p[1].toFixed(2);
+  for(let i=2;i<p.length;i+=2) d+='L'+p[i].toFixed(2)+' '+p[i+1].toFixed(2);
+  const h=r.head; if(h) d+='M'+h[0].toFixed(2)+' '+h[1].toFixed(2)+'L'+h[2].toFixed(2)+' '+h[3].toFixed(2)+'L'+h[4].toFixed(2)+' '+h[5].toFixed(2);
+  return d;
+}
+const ANCHOR={left:'start',center:'middle',right:'end'};
+const SHAPE_TAG={rect:'rect',circle:'circle',text:'text'};
+
+/** A <g> whose children stay sorted by key [order, seq]. */
+class OrderedGroup{
+  constructor(parent){ this.g=document.createElementNS(SVGNS,'g'); parent.appendChild(this.g); this.a=[]; }
+  _idx(k){ let lo=0,hi=this.a.length; while(lo<hi){ const m=(lo+hi)>>1, e=this.a[m].k; if(e[0]<k[0]||(e[0]===k[0]&&e[1]<k[1])) lo=m+1; else hi=m; } return lo; }
+  insert(node,k){ const i=this._idx(k), nx=this.a[i]; this.a.splice(i,0,{k,node}); this.g.insertBefore(node,nx?nx.node:null); }
+  remove(node,k){ let i=this._idx(k); if(!(this.a[i] && this.a[i].node===node)) i=this.a.findIndex(e=>e.node===node); if(i>=0) this.a.splice(i,1); node.remove(); }
+}
+
+class SvgBE{
+  constructor(v){
+    this.v=v; const s=this.svg=document.createElementNS(SVGNS,'svg'); s.setAttribute('class','layer'); s.setAttribute('aria-hidden','true');
+    s.style.fontFamily=FONT; this.root=document.createElementNS(SVGNS,'g'); s.appendChild(this.root);
+    this.layers=[]; for(let i=0;i<10;i++) this.layers.push(new OrderedGroup(this.root));
+    this.els=new Map(); v.host.appendChild(s);
+  }
+  resize(w,h){ sa(this.svg,{width:w,height:h}); }
+  enter(r){
+    const g=document.createElementNS(SVGNS,'g');
+    g.appendChild(document.createElementNS(SVGNS,SHAPE_TAG[r.m.kind]||'path'));
+    const e={n:g,z:zOf(r.m),k:[ordOf(r),r.seq]}; this.layers[e.z].insert(g,e.k); this.els.set(r.id,e); this.paint(r,g);
+  }
+  update(r){
+    const e=this.els.get(r.id); if(!e) return this.enter(r);
+    const z=zOf(r.m), o=ordOf(r);
+    if(e.z!==z || e.k[0]!==o){ this.layers[e.z].remove(e.n,e.k); e.z=z; e.k=[o,r.seq]; this.layers[z].insert(e.n,e.k); }
+    this.paint(r,e.n);
+  }
+  paint(r,g){
+    const m=r.m, s=g.firstChild, dash=m.dash?m.dash.join(' '):'none';
+    if(m.kind==='rect') sa(s,{x:r.x,y:r.y,width:Math.max(0,m.w),height:Math.max(0,m.h),rx:Math.min(m.r||0,m.w/2,m.h/2)||0,fill:m.fill||'none',stroke:m.stroke||'none','stroke-width':m.sw||0,'stroke-dasharray':dash});
+    else if(m.kind==='circle') sa(s,{cx:r.x,cy:r.y,r:m.r,fill:m.fill||'none',stroke:m.stroke||'none','stroke-width':m.sw||0,'stroke-dasharray':dash});
+    else if(m.kind==='text'){ sa(s,{x:r.x,y:r.y,fill:m.color||C.text,'font-size':m.size||12,'font-weight':m.weight||400,'text-anchor':ANCHOR[m.align||'left'],'dominant-baseline':'central'}); if(s.textContent!==String(m.text)) s.textContent=m.text; }
+    else sa(s,{d:pathD(r),fill:'none',stroke:m.stroke||C.dim,'stroke-width':m.sw||1,'stroke-dasharray':dash,'stroke-linecap':'round','stroke-linejoin':'round'});
+    let t=g.childNodes[1];
+    if(m.label!=null && m.label!=='' && (m.kind==='rect'||m.kind==='circle')){
+      if(!t){ t=document.createElementNS(SVGNS,'text'); g.appendChild(t); }
+      const cx=m.kind==='rect'?r.x+m.w/2:r.x, cy=m.kind==='rect'?r.y+m.h/2:r.y;
+      sa(t,{x:cx,y:cy,fill:m.labelColor||C.text,'font-size':m.labelSize||12,'font-weight':m.labelWeight||600,'text-anchor':'middle','dominant-baseline':'central'});
+      if(t.textContent!==String(m.label)) t.textContent=m.label;
+    } else if(t) t.remove();
+    g.setAttribute('opacity',m.opacity??1);
+  }
+  exit(id){ const e=this.els.get(id); if(e){ this.layers[e.z].remove(e.n,e.k); this.els.delete(id); } }
+  commit(){ const c=this.v.cam; this.root.setAttribute('transform',`matrix(${c.s},0,0,${c.s},${-c.x*c.s},${-c.y*c.s})`); }
+  destroy(){ this.svg.remove(); }
+}
+
+function drawLabel(ctx,x,y,m){ ctx.font=`${m.labelWeight||600} ${m.labelSize||12}px ${FONT}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=m.labelColor||C.text; ctx.fillText(m.label,x,y); }
+function drawText(ctx,r){ const m=r.m; ctx.font=`${m.weight||400} ${m.size||12}px ${FONT}`; ctx.textAlign=m.align||'left'; ctx.textBaseline='middle'; ctx.fillStyle=m.color||C.text; ctx.fillText(m.text,r.x,r.y); }
+function drawRec(ctx,r){
+  const m=r.m; ctx.globalAlpha=m.opacity??1;
+  if(m.kind==='text'){ drawText(ctx,r); ctx.globalAlpha=1; return; }
+  ctx.setLineDash(m.dash||[]);
+  if(m.kind==='rect'){
+    ctx.beginPath(); const w=Math.max(0,m.w), h=Math.max(0,m.h), rr=Math.min(m.r||0,w/2,h/2);
+    if(rr>0 && ctx.roundRect) ctx.roundRect(r.x,r.y,w,h,rr); else ctx.rect(r.x,r.y,w,h);
+    if(m.fill&&m.fill!=='none'){ ctx.fillStyle=m.fill; ctx.fill(); }
+    if(m.stroke&&m.sw){ ctx.strokeStyle=m.stroke; ctx.lineWidth=m.sw; ctx.stroke(); }
+    ctx.setLineDash([]); if(m.label!=null && m.label!=='') drawLabel(ctx,r.x+w/2,r.y+h/2,m);
+  } else if(m.kind==='circle'){
+    ctx.beginPath(); ctx.arc(r.x,r.y,m.r,0,Math.PI*2);
+    if(m.fill&&m.fill!=='none'){ ctx.fillStyle=m.fill; ctx.fill(); }
+    if(m.stroke&&m.sw){ ctx.strokeStyle=m.stroke; ctx.lineWidth=m.sw; ctx.stroke(); }
+    ctx.setLineDash([]); if(m.label!=null && m.label!=='') drawLabel(ctx,r.x,r.y,m);
+  } else if(r.pts){
+    const p=r.pts; ctx.beginPath(); ctx.moveTo(p[0],p[1]); for(let i=2;i<p.length;i+=2) ctx.lineTo(p[i],p[i+1]);
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle=m.stroke||C.dim; ctx.lineWidth=m.sw||1; ctx.stroke();
+    const h=r.head; if(h){ ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(h[0],h[1]); ctx.lineTo(h[2],h[3]); ctx.lineTo(h[4],h[5]); ctx.stroke(); }
+  }
+  ctx.setLineDash([]); ctx.globalAlpha=1;
+}
+function mergeRects(rs){
+  if(rs.length>64) return [rs.reduce(unionB)];
+  let changed=true;
+  while(changed){ changed=false;
+    outer: for(let i=0;i<rs.length;i++) for(let j=i+1;j<rs.length;j++){
+      const u=unionB(rs[i],rs[j]); if(areaB(u)<=(areaB(rs[i])+areaB(rs[j]))*1.3+600){ rs[i]=u; rs.splice(j,1); changed=true; break outer; }
+    }
+  }
+  return rs;
+}
+
+/** Canvas2D: caches the held ids in paint order; partial repaints ask the
+    spatial index which held marks touch each damaged region. */
+class CanvasBE{
+  constructor(v){ this.v=v; this.c=document.createElement('canvas'); this.c.className='layer'; this.c.setAttribute('aria-hidden','true'); this.ctx=this.c.getContext('2d'); v.host.appendChild(this.c); this.order=null; this.rank=null; this.meta=new Map(); this.dpr=1; }
+  resize(w,h){ const d=this.dpr=Math.min(window.devicePixelRatio||1,2); this.c.width=Math.round(w*d); this.c.height=Math.round(h*d); this.c.style.width=w+'px'; this.c.style.height=h+'px'; }
+  enter(r){ this.order=null; this.meta.set(r.id,{z:zOf(r.m),o:ordOf(r)}); }
+  update(r){ const m=this.meta.get(r.id), z=zOf(r.m), o=ordOf(r); if(!m||m.z!==z||m.o!==o){ this.order=null; this.meta.set(r.id,{z,o}); } }
+  exit(id){ this.order=null; this.meta.delete(id); }
+  sorted(){
+    if(!this.order){
+      const sc=this.v.scene, a=[]; for(const id of this.v.held.keys()){ const r=sc.recs.get(id); if(r) a.push(r); }
+      a.sort(cmpPaint); this.order=a.map(r=>r.id); this.rank=new Map(); for(let i=0;i<this.order.length;i++) this.rank.set(this.order[i],i);
+    }
+    return this.order;
+  }
+  xf(){ const c=this.v.cam,d=this.dpr; this.ctx.setTransform(d*c.s,0,0,d*c.s,-c.x*c.s*d,-c.y*c.s*d); }
+  full(){
+    const ctx=this.ctx, sc=this.v.scene; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,this.c.width,this.c.height); this.xf();
+    for(const id of this.sorted()){ const r=sc.recs.get(id); if(r&&r.b) drawRec(ctx,r); }
+  }
+  commit(dirty){
+    if(!dirty) return this.full();
+    const v=this.v, c=v.cam, s=c.s; let rs=[];
+    for(const b of dirty){
+      if(!b) continue;
+      const q={x0:Math.max(0,(b.x0-c.x)*s-3),y0:Math.max(0,(b.y0-c.y)*s-3),x1:Math.min(v.w,(b.x1-c.x)*s+3),y1:Math.min(v.h,(b.y1-c.y)*s+3)};
+      if(q.x1>q.x0 && q.y1>q.y0) rs.push(q);
+    }
+    if(!rs.length) return;
+    rs=mergeRects(rs); let ar=0; for(const q of rs) ar+=areaB(q);
+    if(ar>v.w*v.h*0.5) return this.full();
+    this.sorted();
+    const sc=v.scene, held=v.held, rank=this.rank, jobs=[];
+    for(const q of rs){
+      const wq={x0:c.x+q.x0/s,y0:c.y+q.y0/s,x1:c.x+q.x1/s,y1:c.y+q.y1/s}, cand=[];
+      sc.index.query(wq,id=>{ if(held.has(id)) cand.push(id); });
+      if(cand.length>4000) return this.full();
+      cand.sort((a,b)=>rank.get(a)-rank.get(b)); jobs.push([q,cand]);
+    }
+    const ctx=this.ctx, d=this.dpr;
+    for(const [q,cand] of jobs){
+      const x0=Math.floor(q.x0*d), y0=Math.floor(q.y0*d), x1=Math.ceil(q.x1*d), y1=Math.ceil(q.y1*d);
+      ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.beginPath(); ctx.rect(x0,y0,x1-x0,y1-y0); ctx.clip(); ctx.clearRect(x0,y0,x1-x0,y1-y0);
+      this.xf(); for(const id of cand){ const r=sc.recs.get(id); if(r&&r.b) drawRec(ctx,r); }
+      ctx.restore();
+    }
+  }
+  destroy(){ this.c.remove(); }
+}
+
+/* WebGL2: instanced quads — SDF rounded rect, circle, capsule segment, and
+   textured text quads from a string atlas. One instance buffer per z layer.
+   Draw order inside a layer is slot order, so slots are (re)packed in
+   canonical paint order whenever membership or order changes; appends of
+   marks newer than everything in the layer take a fast path. */
+const VS=`#version 300 es
+layout(location=0) in vec2 corner;
+layout(location=1) in vec4 i0;
+layout(location=2) in vec4 i1;
+layout(location=3) in vec4 iF;
+layout(location=4) in vec4 iS;
+uniform vec2 uCam; uniform float uS; uniform vec2 uSize;
+out vec2 vP; out vec2 vUV; flat out vec4 vA; flat out vec4 vB; flat out vec4 vF; flat out vec4 vS;
+void main(){
+  float t=i0.x; float sw=i1.y; float aa=1.5/uS;
+  vA=vec4(i0.yzw,i1.x); vB=vec4(t,sw,i1.z,i1.w); vF=iF; vS=iS; vUV=vec2(0.0);
+  vec2 p;
+  if(t<-0.5){ gl_Position=vec4(2.0,2.0,0.0,1.0); vP=vec2(0.0); return; }
+  if(t<0.5){ vec2 e=vec2(sw*0.5+aa); vec2 lo=i0.yz-e; vec2 hi=i0.yz+vec2(i0.w,i1.x)+e; p=mix(lo,hi,corner); }
+  else if(t<1.5){ float r=i0.w+sw*0.5+aa; p=i0.yz+(corner*2.0-1.0)*r; }
+  else if(t<2.5){ vec2 a=i0.yz; vec2 b=vec2(i0.w,i1.x); vec2 d=b-a; float L=length(d); vec2 u=L>1e-6?d/L:vec2(1.0,0.0); vec2 n=vec2(-u.y,u.x); float hw=max(sw*0.5,0.5/uS)+aa; p=a+u*mix(-hw,L+hw,corner.x)+n*mix(-hw,hw,corner.y); }
+  else { p=i0.yz+corner*vec2(i0.w,i1.x); vUV=mix(iF.xy,iF.zw,corner); }
+  vP=p; vec2 s=(p-uCam)*uS; gl_Position=vec4(s.x/uSize.x*2.0-1.0,1.0-s.y/uSize.y*2.0,0.0,1.0);
+}`;
+const FS=`#version 300 es
+precision highp float;
+in vec2 vP; in vec2 vUV; flat in vec4 vA; flat in vec4 vB; flat in vec4 vF; flat in vec4 vS;
+uniform float uS; uniform sampler2D uTex; out vec4 o;
+float sdRR(vec2 p,vec2 c,vec2 h,float r){ vec2 q=abs(p-c)-h+r; return length(max(q,0.0))+min(max(q.x,q.y),0.0)-r; }
+void main(){
+  float t=vB.x, sw=vB.y;
+  if(t>2.5){ float a=texture(uTex,vUV).a*vS.a; if(a<0.004) discard; o=vec4(vS.rgb*a,a); return; }
+  if(t>1.5){
+    vec2 a=vA.xy, b=vA.zw, pa=vP-a, ba=b-a; float L2=max(dot(ba,ba),1e-9); float h=clamp(dot(pa,ba)/L2,0.0,1.0);
+    if(vF.x>0.0){ float along=h*sqrt(L2)+vB.w; if(mod(along,vF.x+vF.y)>vF.x) discard; }
+    float hw=max(sw*0.5,0.5/uS); float dl=length(pa-ba*h)-hw; float c=clamp(0.5-dl*uS,0.0,1.0)*vS.a;
+    if(c<0.002) discard; o=vec4(vS.rgb*c,c); return;
+  }
+  float d;
+  if(t<0.5){ vec2 hh=vA.zw*0.5; float r=min(vB.z,min(hh.x,hh.y)); d=sdRR(vP,vA.xy+hh,hh,r); }
+  else { d=length(vP-vA.xy)-vA.z; }
+  float fc=clamp(0.5-d*uS,0.0,1.0)*vF.a;
+  float sc=sw>0.0?clamp(0.5-(abs(d)-sw*0.5)*uS,0.0,1.0)*vS.a:0.0;
+  if(t>0.5 && vB.z>0.0 && sc>0.0){ vec2 q=vP-vA.xy; float arc=(atan(q.y,q.x)+3.14159265)*vA.z; if(mod(arc,vB.z+vB.w)>vB.z) sc=0.0; }
+  vec4 f=vec4(vF.rgb*fc,fc); vec4 s=vec4(vS.rgb*sc,sc);
+  o=s+f*(1.0-s.a);
+  if(o.a<0.002) discard;
+}`;
+const GL_OK = (()=>{ try{ return !!document.createElement('canvas').getContext('webgl2'); }catch(e){ return false; } })();
+const keyGt = (a,b) => a[0]>b[0] || (a[0]===b[0] && a[1]>b[1]);
+
+/** Rasterises each distinct (text, size, weight, raster scale) once. */
+class TextAtlas{
+  constructor(gl){
+    const S=this.S=2048; this.gl=gl; this.cv=document.createElement('canvas'); this.cv.width=this.cv.height=S;
+    this.cx=this.cv.getContext('2d',{willReadFrequently:true}); this.map=new Map(); this.x=0; this.y=0; this.rowH=0; this.dirty=null; this.fullUpload=true;
+    this.tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,this.tex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,S,S,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  }
+  reset(){ this.map.clear(); this.x=this.y=this.rowH=0; this.cx.clearRect(0,0,this.S,this.S); this.dirty=null; this.fullUpload=true; }
+  get(text,size,weight,rs){
+    const k=rs+'|'+weight+'|'+size+'|'+text; let e=this.map.get(k); if(e) return e;
+    const S=this.S, tb=textBox(text,size,weight), pad=2, bw=Math.max(tb.l+tb.r,1e-3);
+    let s=rs, pw=Math.ceil(bw*s)+2*pad; if(pw>S){ s=(S-2*pad-1)/bw; pw=S; }
+    const ph=Math.ceil((tb.asc+tb.desc)*s)+2*pad;
+    if(this.x+pw>S){ this.x=0; this.y+=this.rowH; this.rowH=0; }
+    if(this.y+ph>S) return null;
+    const x=this.x, y=this.y; this.x+=pw; this.rowH=Math.max(this.rowH,ph);
+    const cx=this.cx; cx.font=`${weight} ${size*s}px ${FONT}`; cx.textBaseline='middle'; cx.textAlign='left'; cx.fillStyle='#fff';
+    cx.fillText(text, x+pad+tb.l*s, y+pad+tb.asc*s);
+    e={u0:x/S,v0:y/S,u1:(x+pw)/S,v1:(y+ph)/S,ox:-tb.l-pad/s,oy:-tb.asc-pad/s,w:pw/s,h:ph/s,adv:tb.adv};
+    this.map.set(k,e); this.dirty=unionB(this.dirty,{x0:x,y0:y,x1:x+pw,y1:y+ph}); return e;
+  }
+  upload(){
+    const gl=this.gl; gl.bindTexture(gl.TEXTURE_2D,this.tex);
+    if(this.fullUpload){ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,this.S,this.S,0,gl.RGBA,gl.UNSIGNED_BYTE,null); this.fullUpload=false; this.dirty=this.map.size?{x0:0,y0:0,x1:this.S,y1:Math.min(this.S,this.y+this.rowH)}:null; }
+    if(this.dirty){ const d=this.dirty, w=d.x1-d.x0, h=d.y1-d.y0; if(w>0&&h>0) gl.texSubImage2D(gl.TEXTURE_2D,0,d.x0,d.y0,gl.RGBA,gl.UNSIGNED_BYTE,this.cx.getImageData(d.x0,d.y0,w,h)); this.dirty=null; }
+  }
+}
+
+class GlBE{
+  constructor(v){
+    this.v=v; const c=this.c=document.createElement('canvas'); c.className='layer'; c.setAttribute('aria-hidden','true');
+    const gl=this.gl=c.getContext('webgl2',{antialias:false,premultipliedAlpha:true,alpha:true});
+    if(!gl) throw new Error('WebGL2 unavailable');
+    try{
+      const sh=(t,src)=>{ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+      const p=this.prog=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,VS)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,FS)); gl.linkProgram(p);
+      if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      this.uCam=gl.getUniformLocation(p,'uCam'); this.uS=gl.getUniformLocation(p,'uS'); this.uSize=gl.getUniformLocation(p,'uSize'); this.uTex=gl.getUniformLocation(p,'uTex');
+      this.cornerBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,this.cornerBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([0,0,1,0,0,1,1,1]),gl.STATIC_DRAW);
+      this.atlas=new TextAtlas(gl);
+    }catch(e){ const x=gl.getExtension('WEBGL_lose_context'); if(x) x.loseContext(); throw e; }
+    this.layers=new Array(10).fill(null); this.meta=new Map(); this.dpr=1; this.rsLimit=8; this.rs=this.rsFor(v.cam.s); this.atlasFull=false; this.lost=false;
+    c.addEventListener('webglcontextlost',e=>{ e.preventDefault(); this.lost=true; if(!this.destroyed && this.v.onLost) setTimeout(()=>{ if(!this.destroyed) this.v.onLost(this); },0); });
+    v.host.appendChild(c);
+  }
+  rsFor(s){ let rs=0.5; const want=s*Math.min(window.devicePixelRatio||1,2); while(rs<want && rs<8) rs*=2; return Math.min(rs,this.rsLimit); }
+  layer(z){
+    let L=this.layers[z]; if(L) return L; const gl=this.gl;
+    L={cap:256,top:0,data:new Float32Array(256*16),ids:new Set(),maxK:[-Infinity,-Infinity],rebuild:false,holes:0,lo:Infinity,hi:-1,full:true};
+    L.buf=gl.createBuffer(); L.vao=gl.createVertexArray(); gl.bindVertexArray(L.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.cornerBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,L.buf); gl.bufferData(gl.ARRAY_BUFFER,L.data,gl.DYNAMIC_DRAW);
+    for(let k=0;k<4;k++){ gl.enableVertexAttribArray(1+k); gl.vertexAttribPointer(1+k,4,gl.FLOAT,false,64,k*16); gl.vertexAttribDivisor(1+k,1); }
+    gl.bindVertexArray(null); return this.layers[z]=L;
+  }
+  grow(L,need){ if(need<=L.cap) return; let cap=L.cap; while(cap<need) cap*=2; const nd=new Float32Array(cap*16); nd.set(L.data); L.data=nd; L.cap=cap; L.full=true; }
+  write(L,s,inst){ L.data.set(inst,s*16); const n=inst.length/16; L.lo=Math.min(L.lo,s); L.hi=Math.max(L.hi,s+n); }
+  textInst(out,text,size,weight,align,x,y,col){
+    if(text==null || text==='') return; const e=this.atlas.get(String(text),size,weight,this.rs);
+    if(!e){ this.atlasFull=true; return; }
+    out.push(3, x+alignShift(align,e.adv)+e.ox, y+e.oy, e.w, e.h,0,0,0, e.u0,e.v0,e.u1,e.v1, col[0],col[1],col[2],col[3]);
+  }
+  inst(r){
+    const m=r.m, out=[], op=m.opacity??1;
+    const col=c=>{ const v=rgba(c); return [v[0],v[1],v[2],v[3]*op]; };
+    const push=(t,a,b,c,d,sw,e,f,F,S)=>{ out.push(t,a,b,c,d,sw,e,f,F[0],F[1],F[2],F[3],S[0],S[1],S[2],S[3]); };
+    const sw=m.stroke&&m.sw?m.sw:0;
+    if(m.kind==='rect'){
+      push(0,r.x,r.y,Math.max(0,m.w),Math.max(0,m.h),sw,m.r||0,0,col(m.fill),col(m.stroke));
+      this.textInst(out,m.label,m.labelSize||12,m.labelWeight||600,'center',r.x+m.w/2,r.y+m.h/2,col(m.labelColor||C.text));
+    } else if(m.kind==='circle'){
+      const ds=sw&&m.dash?m.dash:null;
+      push(1,r.x,r.y,m.r,0,sw,ds?ds[0]:0,ds?(ds[1]??ds[0]):0,col(m.fill),col(m.stroke));
+      this.textInst(out,m.label,m.labelSize||12,m.labelWeight||600,'center',r.x,r.y,col(m.labelColor||C.text));
+    } else if(m.kind==='text'){
+      this.textInst(out,m.text,m.size||12,m.weight||400,m.align||'left',r.x,r.y,col(m.color||C.text));
+    } else if(r.pts){
+      const p=r.pts, w=m.sw||1, st=col(m.stroke||C.dim), ds=m.dash?[m.dash[0],m.dash[1]??m.dash[0],0,0]:[0,0,0,0];
+      let acc=0;
+      for(let i=0;i+3<p.length;i+=2){ push(2,p[i],p[i+1],p[i+2],p[i+3],w,0,acc,ds,st); acc+=Math.hypot(p[i+2]-p[i],p[i+3]-p[i+1]); }
+      const h=r.head, solid=[0,0,0,0]; if(h){ push(2,h[0],h[1],h[2],h[3],w,0,0,solid,st); push(2,h[2],h[3],h[4],h[5],w,0,0,solid,st); }
+    }
+    return new Float32Array(out);
+  }
+  resize(w,h){ const d=this.dpr=Math.min(window.devicePixelRatio||1,2); this.c.width=Math.round(w*d); this.c.height=Math.round(h*d); this.c.style.width=w+'px'; this.c.style.height=h+'px'; }
+  enter(r){
+    const z=zOf(r.m), L=this.layer(z), k=[ordOf(r),r.seq], e={z,k,s:-1,n:0};
+    L.ids.add(r.id); this.meta.set(r.id,e);
+    if(!L.rebuild && keyGt(k,L.maxK)){ const inst=this.inst(r); e.n=inst.length/16; e.s=L.top; this.grow(L,L.top+e.n); if(e.n) this.write(L,e.s,inst); L.top+=e.n; L.maxK=k; }
+    else L.rebuild=true;
+  }
+  update(r){
+    const e=this.meta.get(r.id); if(!e) return this.enter(r);
+    if(zOf(r.m)!==e.z || ordOf(r)!==e.k[0]){ this.exit(r.id); this.enter(r); return; }
+    const L=this.layers[e.z]; if(L.rebuild) return;
+    const inst=this.inst(r);
+    if(inst.length/16===e.n){ if(e.n) this.write(L,e.s,inst); } else L.rebuild=true;
+  }
+  exit(id){
+    const e=this.meta.get(id); if(!e) return; const L=this.layers[e.z]; L.ids.delete(id); this.meta.delete(id);
+    if(L.rebuild || !e.n) return;
+    for(let k=0;k<e.n;k++) L.data[(e.s+k)*16]=-1;
+    L.lo=Math.min(L.lo,e.s); L.hi=Math.max(L.hi,e.s+e.n); L.holes+=e.n;
+    if(L.holes>64 && L.holes>L.top*0.25) L.rebuild=true;
+  }
+  rebuildLayer(L){
+    const sc=this.v.scene, recs=[]; for(const id of L.ids){ const r=sc.recs.get(id); if(r) recs.push(r); }
+    recs.sort(cmpPaint);
+    const parts=recs.map(r=>this.inst(r)); let total=0; for(const a of parts) total+=a.length/16;
+    this.grow(L,total); let s=0;
+    for(let i=0;i<recs.length;i++){ const a=parts[i], e=this.meta.get(recs[i].id); L.data.set(a,s*16); e.s=s; e.n=a.length/16; s+=e.n; }
+    L.top=s; L.holes=0; L.rebuild=false; L.full=true; L.maxK=recs.length?[ordOf(recs[recs.length-1]),recs[recs.length-1].seq]:[-Infinity,-Infinity];
+  }
+  commit(){
+    const gl=this.gl, v=this.v, c=v.cam, d=this.dpr;
+    if(this.lost || gl.isContextLost()) return;
+    const rs=this.rsFor(c.s);
+    if(rs!==this.rs){ this.rs=rs; this.atlas.reset(); for(const L of this.layers) if(L) L.rebuild=true; }
+    for(const L of this.layers) if(L && L.rebuild) this.rebuildLayer(L);
+    for(let tries=0; this.atlasFull && tries<4; tries++){
+      this.atlasFull=false; if(tries){ this.rsLimit=Math.max(0.25,this.rs/2); this.rs=this.rsLimit; }
+      this.atlas.reset(); for(const L of this.layers) if(L) this.rebuildLayer(L);
+    }
+    for(const L of this.layers){
+      if(!L) continue; gl.bindBuffer(gl.ARRAY_BUFFER,L.buf);
+      if(L.full){ gl.bufferData(gl.ARRAY_BUFFER,L.data,gl.DYNAMIC_DRAW); L.full=false; }
+      else if(L.hi>L.lo) gl.bufferSubData(gl.ARRAY_BUFFER,L.lo*64,L.data,L.lo*16,(L.hi-L.lo)*16);
+      L.lo=Infinity; L.hi=-1;
+    }
+    this.atlas.upload();
+    gl.viewport(0,0,this.c.width,this.c.height); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.prog); gl.uniform2f(this.uCam,c.x,c.y); gl.uniform1f(this.uS,c.s*d); gl.uniform2f(this.uSize,this.c.width,this.c.height);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,this.atlas.tex); gl.uniform1i(this.uTex,0);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+    for(const L of this.layers){ if(!L||!L.top) continue; gl.bindVertexArray(L.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,L.top); }
+    gl.bindVertexArray(null);
+  }
+  destroy(){ this.destroyed=true; const x=this.gl.getExtension('WEBGL_lose_context'); if(x) x.loseContext(); this.c.remove(); }
+}
+const BACKENDS={svg:SvgBE,canvas:CanvasBE,webgl:GlBE};
+/*@engine:end*/
+
+/* =====================================================================
+   SHELL — demo contexts, control panels, input, frame scheduling, HUD
+   ===================================================================== */
+const $=s=>document.querySelector(s);
+function el(tag,cls,text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+function elHTML(tag,cls,html){ const e=el(tag,cls); e.innerHTML=html; return e; } // authored, trusted content only
+const app={mode:'explore',backend:'canvas',dbg:false,index:'quadtree',xdef:null};
+let toastT=0;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),3600); }
+function announce(msg){ const s=$('#sr'); s.textContent=''; setTimeout(()=>{ s.textContent=msg; },30); }
+const miniFilter=r=>r.m.only==='mini' || (r.m.kind!=='text' && r.m.mini!==false);
+
+/** Owns everything one running example needs; destroy() releases all of it. */
+class DemoContext{
+  constructor({stage,panel,seed=1,tutorial=false}){
+    this.stage=stage; this.panel=panel; this.seed=seed; this.rand=mulberry32(seed); this.tutorial=tutorial;
+    this.reducedMotion=!!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    this.timers=new Set(); this.disposers=[]; this.dead=false; this.st={}; this.bounds=null; this.tickMs=0;
+    this.h={downs:[],taps:[],dbls:[],keys:[],ticks:[]};
+    stage.view.textContent=''; stage.mini.textContent=''; stage.mini.hidden=true;
+    this.scene=new Scene({index:app.index}); this.scene.onChange=wake;
+    let be=app.backend; if(be==='webgl'&&!GL_OK) be='canvas';
+    try{ this.main=new View(this.scene,stage.view,'main',be); }
+    catch(e){ console.error(e); toast(`Couldn't start ${be}; using Canvas2D.`); this.main=new View(this.scene,stage.view,'main','canvas'); app.backend='canvas'; }
+    this.main.onLost=()=>onGlLost(this); this.mini=null; this.api=makeApi(this);
+  }
+  addMini(){
+    if(this.mini) return this.mini; this.stage.mini.hidden=false;
+    this.mini=new View(this.scene,this.stage.mini,'mini','canvas',{filter:miniFilter,margin:0}); this.refreshMini(); return this.mini;
+  }
+  later(fn,ms=0){ const t=setTimeout(()=>{ this.timers.delete(t); if(!this.dead){ fn(); wake(); } },ms); this.timers.add(t); return t; }
+  onDispose(fn){ this.disposers.push(fn); }
+  /** Register interaction handlers. onDown returns a drag handler {move, up, cancel} or null. */
+  use(h){ if(h.onDown) this.h.downs.push(h.onDown); if(h.onTap) this.h.taps.push(h.onTap); if(h.onDbl) this.h.dbls.push(h.onDbl); if(h.onKey) this.h.keys.push(h.onKey); if(h.tick) this.h.ticks.push(h.tick); }
+  down(hit,wx,wy,e){ for(let i=this.h.downs.length-1;i>=0;i--){ const r=this.h.downs[i](hit,wx,wy,e); if(r) return r; } return null; }
+  tap(hit,wx,wy){ for(const f of this.h.taps) f(hit,wx,wy); }
+  dbl(hit,wx,wy){ for(const f of this.h.dbls) f(hit,wx,wy); }
+  key(e){ for(const f of this.h.keys) f(e); }
+  tick(dt){ const t0=performance.now(); let any=false; for(const f of this.h.ticks) if(f(dt)) any=true; this.tickMs=performance.now()-t0; return any; }
+  fit(b,pad=30){ const bb=b||(this.bounds&&this.bounds()); if(bb) this.main.fit(bb,pad); }
+  refreshMini(){ if(this.mini && this.bounds) this.mini.fit(this.bounds(),6); }
+  frame(){
+    const moved=this.main.camDirty; this.main.frame();
+    if(this.mini){ if(moved||!this.scene.has('__vp')) setVp(this); this.mini.frame(); }
+    this.scene.compact();
+  }
+  destroy(){
+    this.dead=true; for(const t of this.timers) clearTimeout(t); this.timers.clear();
+    cancelDrag(this.stage);
+    for(const f of this.disposers){ try{ f(); }catch(e){ console.error(e); } }
+    this.main.destroy(); if(this.mini) this.mini.destroy(); this.stage.mini.hidden=true;
+    if(this.panel) this.panel.textContent='';
+  }
+}
+function setVp(ctx){
+  const sc=ctx.scene, v=ctx.main, r=v.screenRect(), g=v.region, s=ctx.mini.cam.s;
+  sc.batch(()=>{
+    sc.set('__vp',{kind:'rect',x:r.x0,y:r.y0,w:r.x1-r.x0,h:r.y1-r.y0,fill:'rgba(110,168,254,.10)',stroke:C.acc,sw:1.5/s,z:9,only:'mini'});
+    sc.set('__rg',{kind:'rect',x:g.x0,y:g.y0,w:g.x1-g.x0,h:g.y1-g.y0,fill:'none',stroke:'rgba(245,158,11,.75)',sw:1/s,dash:[4/s,3/s],z:9,only:'mini'});
+  });
+}
+
+/* ---- control panel builder; labels wrap their inputs ---- */
+function makeApi(ctx){
+  let cur=ctx.panel;
+  return {
+    group(title){ const g=el('div'); if(title) g.appendChild(el('h3',null,title)); ctx.panel.appendChild(g); cur=g; return g; },
+    note(html){ cur.appendChild(elHTML('p',null,html)); },
+    html(html){ const d=elHTML('div',null,html); cur.appendChild(d); return d; },
+    box(){ const d=el('div','selbox'); cur.appendChild(d); return d; },
+    buttons(list){ const b=el('div','btns'); for(const [label,fn,pri] of list){ const x=el('button','btn'+(pri?' pri':''),label); x.type='button'; x.onclick=()=>{ fn(); wake(); }; b.appendChild(x); } cur.appendChild(b); return b; },
+    slider(label,min,max,step,val,on,fmt=v=>v,live=true){
+      const w=el('label','slider'), r=el('div','row'), lb=el('span',null,label), out=el('output',null,String(fmt(val))); r.append(lb,out);
+      const inp=el('input'); Object.assign(inp,{type:'range',min,max,step,value:val});
+      inp.addEventListener('input',()=>{ out.textContent=fmt(+inp.value); if(live){ on(+inp.value); wake(); } });
+      if(!live) inp.addEventListener('change',()=>{ on(+inp.value); wake(); });
+      w.append(r,inp); cur.appendChild(w); return inp;
+    },
+    toggle(label,val,on){ const r=el('label','row'), lb=el('span',null,label), inp=el('input'); inp.type='checkbox'; inp.checked=val; inp.onchange=()=>{ on(inp.checked); wake(); }; r.append(lb,inp); cur.appendChild(r); return inp; },
+    seg(label,opts,val,on){
+      const r=el('div','row'); r.appendChild(el('span',null,label)); const g=el('div','seg'); g.setAttribute('role','group'); g.setAttribute('aria-label',label);
+      const set=v=>{ for(const b of g.children) b.setAttribute('aria-pressed',String(b.dataset.v===v)); };
+      for(const [v,t] of opts){ const b=el('button',null,t); b.type='button'; b.dataset.v=v; b.onclick=()=>{ set(v); on(v); wake(); }; g.appendChild(b); }
+      set(val); r.appendChild(g); cur.appendChild(r); return {set};
+    },
+    readouts(keys){ const g=el('div','kv'), out={}; for(const k of keys){ g.appendChild(el('span',null,k)); const v=el('span',null,'—'); g.appendChild(v); out[k]=v; } cur.appendChild(g); return (k,v)=>{ if(out[k] && out[k].textContent!==String(v)) out[k].textContent=v; }; }
+  };
+}
+
+/* ---- stages and input ---- */
+/** Keep the world point under the old midpoint under the new midpoint, at the new scale. */
+function pinchCam(cam,oldMid,newMid,ratio){
+  const wx=cam.x+oldMid[0]/cam.s, wy=cam.y+oldMid[1]/cam.s, s=clamp(cam.s*ratio,0.004,8);
+  return {x:wx-newMid[0]/s, y:wy-newMid[1]/s, s};
+}
+function makeStage(root){
+  const S={root,view:root.querySelector('.view'),mini:root.querySelector('.mini'),hud:root.querySelector('.hud'),dbg:root.querySelector('.dbgc'),hint:root.querySelector('.hint'),
+    ctx:null,input:{ptrs:new Map(),drag:null,lastTap:0,lastXY:[0,0]},dbgList:[],frames:[],hudT:0,secT:0};
+  attachInput(S); new ResizeObserver(()=>{ sizeDbg(S); if(S.ctx){ S.ctx.main.resize(); if(S.ctx.mini){ S.ctx.mini.resize(); S.ctx.refreshMini(); } } }).observe(root);
+  sizeDbg(S); return S;
+}
+function cancelDrag(S){ const I=S.input, d=I.drag; I.drag=null; I.ptrs.clear(); if(d && d.h && d.h.cancel){ try{ d.h.cancel(); }catch(e){ console.error(e); } } S.view.style.cursor='grab'; }
+function attachInput(S){
+  const V=S.view, I=S.input;
+  const local=e=>{ const r=V.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; };
+  V.addEventListener('pointerdown',e=>{
+    const ctx=S.ctx; if(!ctx) return;
+    if(e.pointerType==='mouse' && e.button!==0 && e.button!==1) return;
+    V.focus({preventScroll:true}); try{ V.setPointerCapture(e.pointerId); }catch(err){} const p=local(e); I.ptrs.set(e.pointerId,p);
+    if(I.ptrs.size===2){
+      const d=I.drag; if(d && d.h && d.h.cancel) d.h.cancel();
+      const [a,b]=[...I.ptrs.values()]; I.drag={pinch:true,d:Math.hypot(a[0]-b[0],a[1]-b[1])||1,mid:[(a[0]+b[0])/2,(a[1]+b[1])/2]}; return;
+    }
+    if(I.ptrs.size>2) return;
+    const v=ctx.main, [wx,wy]=v.toWorld(p[0],p[1]);
+    const hit=e.button===1?null:ctx.scene.hitTest(v,wx,wy), h=e.button===1?null:ctx.down(hit,wx,wy,e);
+    I.drag=h?{h,sx:p[0],sy:p[1],moved:false,hit}:{pan:true,sx:p[0],sy:p[1],cx:v.cam.x,cy:v.cam.y,moved:false,hit};
+    if(I.drag.pan) V.style.cursor='grabbing'; wake();
+  });
+  V.addEventListener('pointermove',e=>{
+    const ctx=S.ctx; if(!ctx) return; const p=local(e), v=ctx.main;
+    if(!I.ptrs.has(e.pointerId)){
+      if(e.pointerType==='mouse'){ const [wx,wy]=v.toWorld(p[0],p[1]); V.style.cursor=ctx.scene.hitTest(v,wx,wy)?'pointer':'grab'; }
+      return;
+    }
+    I.ptrs.set(e.pointerId,p); const d=I.drag; if(!d) return;
+    if(d.pinch){
+      if(I.ptrs.size<2) return; const [a,b]=[...I.ptrs.values()];
+      const nd=Math.hypot(a[0]-b[0],a[1]-b[1])||1, nm=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      const c=pinchCam(v.cam,d.mid,nm,nd/d.d); v.setCam(c.x,c.y,c.s); d.d=nd; d.mid=nm; return;
+    }
+    if(!d.moved && Math.hypot(p[0]-d.sx,p[1]-d.sy)>4) d.moved=true;
+    if(!d.moved) return;
+    if(d.pan) v.setCam(d.cx-(p[0]-d.sx)/v.cam.s, d.cy-(p[1]-d.sy)/v.cam.s, v.cam.s);
+    else { const [wx,wy]=v.toWorld(p[0],p[1]); if(d.h.move) d.h.move(wx,wy,e); wake(); }
+  });
+  function endPtr(e,cancelled){
+    if(!I.ptrs.has(e.pointerId)) return; I.ptrs.delete(e.pointerId);
+    const d=I.drag, ctx=S.ctx; if(!d||!ctx) return;
+    if(d.pinch){
+      if(I.ptrs.size===1){ const p=[...I.ptrs.values()][0], v=ctx.main; I.drag={pan:true,sx:p[0],sy:p[1],cx:v.cam.x,cy:v.cam.y,moved:true}; }
+      else if(!I.ptrs.size) I.drag=null;
+      return;
+    }
+    I.drag=null; V.style.cursor='grab'; wake();
+    if(cancelled){ if(d.h && d.h.cancel) d.h.cancel(); return; }
+    const p=local(e), [wx,wy]=ctx.main.toWorld(p[0],p[1]);
+    if(d.h && d.h.up) d.h.up(wx,wy,d.moved,e);
+    if(!d.moved){
+      const now=performance.now(), dbl=now-I.lastTap<350 && Math.hypot(p[0]-I.lastXY[0],p[1]-I.lastXY[1])<20;
+      if(dbl){ ctx.dbl(d.hit,wx,wy); I.lastTap=0; }
+      else { I.lastTap=now; I.lastXY=p; if(d.pan) ctx.tap(d.hit,wx,wy); }
+    }
+  }
+  V.addEventListener('pointerup',e=>endPtr(e,false));
+  V.addEventListener('pointercancel',e=>endPtr(e,true));
+  V.addEventListener('lostpointercapture',e=>endPtr(e,true));
+  V.addEventListener('wheel',e=>{ if(!S.ctx) return; e.preventDefault(); const p=local(e); S.ctx.main.zoomAt(p[0],p[1],Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015))); },{passive:false});
+  V.addEventListener('keydown',e=>{
+    const ctx=S.ctx; if(!ctx||e.isComposing) return; const v=ctx.main, step=60/v.cam.s;
+    const pan={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
+    if(pan){ e.preventDefault(); v.setCam(v.cam.x+pan[0],v.cam.y+pan[1],v.cam.s); }
+    else if(e.key==='+'||e.key==='='){ e.preventDefault(); v.zoomAt(v.w/2,v.h/2,1.25); }
+    else if(e.key==='-'||e.key==='_'){ e.preventDefault(); v.zoomAt(v.w/2,v.h/2,0.8); }
+    else if(e.key==='0'){ e.preventDefault(); ctx.fit(); }
+  });
+  const miniNav=e=>{ const ctx=S.ctx; if(!ctx||!ctx.mini) return; const r=S.mini.getBoundingClientRect(); const [wx,wy]=ctx.mini.toWorld(e.clientX-r.left,e.clientY-r.top); const v=ctx.main; v.setCam(wx-v.w/2/v.cam.s, wy-v.h/2/v.cam.s, v.cam.s); };
+  S.mini.addEventListener('pointerdown',e=>{ e.stopPropagation(); try{ S.mini.setPointerCapture(e.pointerId); }catch(err){} miniNav(e); });
+  S.mini.addEventListener('pointermove',e=>{ if(S.mini.hasPointerCapture(e.pointerId)) miniNav(e); });
+}
+window.addEventListener('keydown',e=>{
+  const S=activeStage(); if(!S||!S.ctx||e.isComposing) return;
+  if(e.key==='Escape' && S.input.drag){ e.preventDefault(); cancelDrag(S); wake(); return; }
+  if(isEditable(e.target)) return;
+  S.ctx.key(e); wake();
+});
+
+/* ---- HUD + debug overlay ---- */
+function sizeDbg(S){ const r=S.root.getBoundingClientRect(), d=Math.min(devicePixelRatio||1,2); S.dbg.width=Math.max(1,r.width*d); S.dbg.height=Math.max(1,r.height*d); S.dbg.style.width=r.width+'px'; S.dbg.style.height=r.height+'px'; }
+function pct(a,p){ if(!a.length) return 0; const b=[...a].sort((x,y)=>x-y); return b[Math.min(b.length-1,Math.floor(p*b.length))]; }
+function renderHud(S,anim){
+  const ctx=S.ctx; if(!ctx) return; const v=ctx.main, s=v.stats, a=v.persec, f=S.frames;
+  const timing = anim && f.length>10 ? `frame p50 ${pct(f,.5).toFixed(1)} / p95 ${pct(f,.95).toFixed(1)} ms` : 'idle — frames drawn on change';
+  S.hud.innerHTML=`<b>${v.backendName.toUpperCase()}</b>  ${fmtN(v.held.size)} held / ${fmtN(ctx.scene.recs.size)} marks · ${ctx.scene.indexKind}\n`+
+    `last join <i>${s.mode}</i>  +${s.en} ~${s.up} −${s.ex}\n`+
+    `CPU: join+submit ${s.ms.toFixed(1)} ms · tick ${ctx.tickMs.toFixed(1)} ms\n`+
+    `per sec +${fmtN(a.en)} ~${fmtN(a.up)} −${fmtN(a.ex)}\n`+
+    `${timing} · zoom ${v.cam.s.toFixed(2)}×`;
+}
+function drawDbg(S,now){
+  const ctx2=S.dbg.getContext('2d'), d=Math.min(devicePixelRatio||1,2), v=S.ctx.main, L=S.dbgList;
+  if(!app.dbg){ if(L.length){ L.length=0; ctx2.setTransform(1,0,0,1,0,0); ctx2.clearRect(0,0,S.dbg.width,S.dbg.height); } return false; }
+  if(v.frameMode==='full') L.push({full:true,t:now});
+  for(const b of v.lastDirty) if(b) L.push({b,t:now});
+  while(L.length && now-L[0].t>450) L.shift();
+  if(L.length>600) L.splice(0,L.length-600);
+  ctx2.setTransform(1,0,0,1,0,0); ctx2.clearRect(0,0,S.dbg.width,S.dbg.height); ctx2.setTransform(d,0,0,d,0,0);
+  const c=v.cam;
+  for(const it of L){
+    const a=1-(now-it.t)/450;
+    if(it.full){ ctx2.strokeStyle=`rgba(245,158,11,${a})`; ctx2.lineWidth=4; ctx2.strokeRect(2,2,v.w-4,v.h-4); continue; }
+    const b=it.b; ctx2.strokeStyle=`rgba(248,113,113,${a})`; ctx2.fillStyle=`rgba(248,113,113,${a*0.12})`; ctx2.lineWidth=1;
+    const x=(b.x0-c.x)*c.s, y=(b.y0-c.y)*c.s, w=(b.x1-b.x0)*c.s, h=(b.y1-b.y0)*c.s; ctx2.fillRect(x,y,w,h); ctx2.strokeRect(x,y,w,h);
+  }
+  return L.length>0;
+}
+
+/* ---- frame scheduling: draw only when something changed or is animating ---- */
+let rafId=0, lastT=0;
+function wake(){ if(!rafId) rafId=requestAnimationFrame(loop); }
+function loop(now){
+  rafId=0; const S=activeStage(), ctx=S&&S.ctx; const gap=now-lastT; lastT=now; if(!ctx) return;
+  const dt=gap>0&&gap<250?gap/1000:1/60;
+  let anim=false; try{ anim=ctx.tick(Math.min(dt,0.1)); }catch(e){ console.error(e); }
+  try{ ctx.frame(); }catch(e){ console.error(e); }
+  const fading=drawDbg(S,now), dragging=!!S.input.drag;
+  if(anim && gap<250){ S.frames.push(gap); if(S.frames.length>120) S.frames.shift(); } else if(!anim) S.frames.length=0;
+  if(now-S.secT>=1000){ const v=ctx.main; v.persec={...v.acc}; v.acc={en:0,up:0,ex:0}; S.secT=now; }
+  if(!anim || now-S.hudT>200){ S.hudT=now; renderHud(S,anim); }
+  if(anim||fading||dragging) wake();
+}
+
+/* ---- backends ---- */
+function syncBackendButtons(){ document.querySelectorAll('#backends button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.b===app.backend))); }
+function setBackend(b){
+  if(b==='webgl'&&!GL_OK) return;
+  const ctx=activeStage()&&activeStage().ctx;
+  if(ctx){ try{ ctx.main.setBackend(b); app.backend=b; }catch(e){ console.error(e); toast(`Couldn't start ${b}: ${e.message}`); } }
+  else app.backend=b;
+  syncBackendButtons(); wake();
+}
+function onGlLost(ctx){
+  toast('The WebGL context was lost, so this view switched to Canvas2D. The scene is unchanged.');
+  try{ ctx.main.setBackend('canvas'); }catch(e){ console.error(e); }
+  app.backend='canvas'; syncBackendButtons(); wake();
+}
+function ensureBackend(S){ if(S.ctx && S.ctx.main.backendName!==app.backend){ try{ S.ctx.main.setBackend(app.backend); }catch(e){ app.backend=S.ctx.main.backendName; syncBackendButtons(); } } }
+
+/* =====================================================================
+   DEMO — STOCKS & FLOWS  (logistic prey, predators that eat them)
+     dR/dt = a·R·(1 − R/K) − b·R·F        dF/dt = c·b·R·F − d·F
+   ===================================================================== */
+const FLOW_DEF={a:1.0,K:100,b:0.02,c:0.5,d:0.4};
+const FLOW_RANGE={a:[0.1,2,'prey growth a',v=>v.toFixed(2)],K:[40,300,'capacity K',v=>v.toFixed(0)],b:[0.005,0.05,'predation b',v=>v.toFixed(3)],c:[0.1,1,'efficiency c',v=>v.toFixed(2)],d:[0.1,1,'mortality d',v=>v.toFixed(2)]};
+const FLOW_COL={prey:'#34d399',pred:'#f472b6',pipe:'#3a4452',info:'rgba(160,174,192,.6)',ctrl:'#f59e0b',meas:'#6ea8fe'};
+const FLOW_SIM={RATE:2.4, H:0.01, SAMPLE:0.08, HMAX:500, MAX_STEPS:4000}; // RATE = model time units per real second at 1×
+
+function flowsState(ctx){ return ctx.st.flows || (ctx.st.flows={P:{...FLOW_DEF},R:80,F:12,t:0,acc:0,sampleAcc:0,hist:{R:[],F:[]},phase:{},running:false,speed:1,chartDirty:true,rd:null,runT:null}); }
+function fSetText(ctx,id,text){ const m=ctx.scene.get(id); if(m && m.text!==text) ctx.scene.patch(id,{text}); }
+function fSetLabel(ctx,id,label){ const m=ctx.scene.get(id); if(m && m.label!==label) ctx.scene.patch(id,{label}); }
+
+function fStock(ctx,id,x,y,name,color){
+  const sc=ctx.scene;
+  sc.batch(()=>{
+    sc.set(id,{kind:'rect',x,y,w:170,h:120,r:6,fill:'#121821',stroke:color,sw:2,z:2,data:{drag:id}});
+    sc.set(id+':lv',{kind:'rect',at:{id,port:'bl',dx:3,dy:-3},w:164,h:0,r:3,fill:color,opacity:.35,z:3});
+    sc.set(id+':n',{kind:'text',at:{id,port:'t',dy:-14},text:name,size:14,weight:600,align:'center',color,z:4});
+    sc.set(id+':v',{kind:'text',at:{id,port:'c'},text:'',size:22,weight:700,align:'center',color:C.text,z:4});
+  });
+}
+function fCloud(ctx,id,x,y,kind){
+  ctx.scene.set(id,{kind:'circle',x,y,r:24,fill:'#141922',stroke:'#4b5563',sw:1.5,dash:[4,4],label:'☁',labelSize:22,labelColor:'#9ca3af',z:2,data:{drag:id}});
+  ctx.scene.set(id+':n',{kind:'text',at:{id,dy:38},text:kind,size:11,color:C.dim,align:'center',z:3});
+}
+/** A flow is a pipe whose ends are anchored to the sides of what it connects. */
+function fPipe(ctx,id,from,fp,to,tp){
+  ctx.scene.set(id,{kind:'link',from:{id:from,port:fp},to:{id:to,port:tp},stroke:FLOW_COL.pipe,sw:12,arrow:true,arrowSize:14,z:1});
+}
+/** The valve sits halfway along the pipe (port 'mid'); its labels hang off the valve. */
+function fValve(ctx,id,name){
+  const v=id+':valve', sc=ctx.scene;
+  sc.batch(()=>{
+    sc.set(v,{kind:'circle',at:{id,port:'mid'},r:13,fill:'#0e1116',stroke:C.acc,sw:2.5,label:'⋈',labelSize:14,labelColor:C.acc,z:4});
+    sc.set(v+':n',{kind:'text',at:{id:v,dy:-26},text:name,size:12,weight:600,align:'center',color:C.text,z:5});
+    sc.set(v+':r',{kind:'text',at:{id:v,dy:28},text:'',size:11,align:'center',color:C.dim,z:5});
+  });
+}
+/** Particles sample the pipe by arc length: port {t} in [0,1]. */
+function fParticles(ctx,id,n=7){
+  const F=flowsState(ctx); F.phase[id]=0;
+  ctx.scene.batch(()=>{ for(let k=0;k<n;k++) ctx.scene.set(`${id}:p${k}`,{kind:'circle',at:{id,port:{t:k/n}},r:3.2,fill:'#cbd5e1',z:2}); });
+}
+function fMeasure(ctx,id,x,y,name){
+  ctx.scene.set(id,{kind:'circle',x,y,r:30,fill:'#101722',stroke:FLOW_COL.meas,sw:2,label:'',labelSize:13,labelColor:C.text,z:3,data:{drag:id}});
+  ctx.scene.set(id+':n',{kind:'text',at:{id,dy:44},text:name,size:12,align:'center',color:FLOW_COL.meas,z:4});
+}
+function fInfo(ctx,from,to,trimEnd,bend=0.18){
+  const F=flowsState(ctx); F.infoN=(F.infoN||0)+1;
+  ctx.scene.set('info'+F.infoN,{kind:'link',from:{id:from,port:'c'},to:{id:to},route:'curve',bend,stroke:FLOW_COL.info,sw:1.5,dash:[5,4],arrow:true,arrowSize:7,trimEnd,z:1});
+}
+function fControl(ctx,key,x,y){
+  const [lo,hi,name,fmt]=FLOW_RANGE[key], F=flowsState(ctx), id='ctl:'+key, f=(F.P[key]-lo)/(hi-lo), sc=ctx.scene;
+  sc.batch(()=>{
+    sc.set(id,{kind:'rect',x,y,w:140,h:6,r:3,fill:'#2a313c',z:3,data:{ctrl:key,part:'track'}});
+    sc.set(id+':fill',{kind:'rect',at:{id},w:140*f,h:6,r:3,fill:FLOW_COL.ctrl,z:4,data:{ctrl:key,part:'track'}});
+    sc.set(id+':knob',{kind:'circle',at:{id,dx:140*f,dy:3},r:9,fill:FLOW_COL.ctrl,stroke:'#0e1116',sw:2,z:5,data:{ctrl:key,part:'knob'}});
+    sc.set(id+':l',{kind:'text',at:{id,dy:-16},text:`${name} = ${fmt(F.P[key])}`,size:12,color:FLOW_COL.ctrl,z:5,data:{ctrl:key,part:'label'}});
+  });
+}
+function fSetCtrl(ctx,key,val){
+  const [lo,hi,name,fmt]=FLOW_RANGE[key], F=flowsState(ctx), id='ctl:'+key, sc=ctx.scene;
+  F.P[key]=clamp(val,lo,hi); const f=(F.P[key]-lo)/(hi-lo);
+  if(sc.has(id)) sc.batch(()=>{ sc.patch(id+':fill',{w:140*f}); sc.patch(id+':knob',{at:{id,dx:140*f,dy:3}}); fSetText(ctx,id+':l',`${name} = ${fmt(F.P[key])}`); });
+  fVisuals(ctx,0);
+}
+/** Net prey growth can be negative when R exceeds K. */
+function fRates(F){ const {a,K,b,c,d}=F.P, growth=a*F.R*(1-F.R/K), kills=b*F.R*F.F; return {growth,kills,births:c*kills,deaths:d*F.F}; }
+function fStep(F){
+  const q=fRates(F), h=FLOW_SIM.H;
+  F.R=Math.max(0,F.R+(q.growth-q.kills)*h); F.F=Math.max(0,F.F+(q.births-q.deaths)*h); F.t+=h; F.sampleAcc+=h;
+  if(F.sampleAcc>=FLOW_SIM.SAMPLE-1e-9){ F.sampleAcc-=FLOW_SIM.SAMPLE; F.hist.R.push(F.R); F.hist.F.push(F.F); if(F.hist.R.length>FLOW_SIM.HMAX){ F.hist.R.shift(); F.hist.F.shift(); } F.chartDirty=true; }
+}
+/** Fixed-step integration: accumulate model time, consume whole steps, keep the remainder.
+    Catch-up is capped, so a long pause drops time instead of freezing the page. */
+function flowsAdvance(ctx,modelTime){
+  const F=flowsState(ctx), H=FLOW_SIM.H; F.acc+=modelTime; let n=0;
+  while(F.acc>=H-1e-12 && n<FLOW_SIM.MAX_STEPS){ fStep(F); F.acc-=H; n++; }
+  if(n>=FLOW_SIM.MAX_STEPS) F.acc=0;
+  return n;
+}
+function fVisuals(ctx,dt){
+  const F=flowsState(ctx), sc=ctx.scene, q=fRates(F);
+  sc.batch(()=>{
+    const lv=(id,val,max)=>{ const m=sc.get(id+':lv'); if(!m) return; const h=clamp(val/max,0,1)*114; if(Math.abs(m.h-h)>0.25) sc.patch(id+':lv',{h,at:{id,port:'bl',dx:3,dy:-3-h}}); };
+    lv('prey',F.R,Math.max(F.P.K*1.15,60)); lv('pred',F.F,80);
+    fSetText(ctx,'prey:v',F.R.toFixed(1)); fSetText(ctx,'pred:v',F.F.toFixed(1));
+    const flows={fB:q.growth,fP:q.kills,fPB:q.births,fPD:q.deaths};
+    for(const id in flows){
+      const rate=flows[id]; fSetText(ctx,id+':valve:r',`${rate<0?'−':''}${Math.abs(rate).toFixed(2)} / t`);
+      if(!(id in F.phase) || !dt) continue;
+      F.phase[id]=(F.phase[id]+Math.sign(rate)*Math.min(Math.abs(rate)*0.02,1.4)*dt*F.speed+1)%1;
+      for(let k=0;k<7;k++) sc.patch(`${id}:p${k}`,{at:{id,port:{t:(k/7+F.phase[id])%1}}});
+    }
+    fSetLabel(ctx,'mCrowd',(F.R/F.P.K).toFixed(2)); fSetLabel(ctx,'mPred',q.kills.toFixed(2));
+  });
+}
+function fChart(ctx){
+  const sc=ctx.scene;
+  sc.batch(()=>{
+    sc.set('chart',{kind:'rect',x:920,y:70,w:460,h:320,r:8,fill:'#0f141b',stroke:'#2a313c',sw:1.5,z:1,data:{drag:'chart'}});
+    sc.set('chart:t',{kind:'text',at:{id:'chart',dx:14,dy:18},text:'Stocks over time',size:13,weight:600,color:C.text,z:2});
+    sc.set('chart:lr',{kind:'text',at:{id:'chart',dx:300,dy:18},text:'● prey',size:12,color:FLOW_COL.prey,z:2});
+    sc.set('chart:lf',{kind:'text',at:{id:'chart',dx:370,dy:18},text:'● predators',size:12,color:FLOW_COL.pred,z:2});
+    sc.set('chart:max',{kind:'text',at:{id:'chart',dx:14,dy:44},text:'',size:10,color:C.dim,z:2});
+    for(const k of ['base','R','F']) sc.set('chart:'+k,{kind:'path',pts:[0,0,1,0],stroke:k==='R'?FLOW_COL.prey:k==='F'?FLOW_COL.pred:'#2a313c',sw:k==='base'?1:2,z:k==='base'?2:3});
+  });
+  flowsState(ctx).chartDirty=true; fDrawChart(ctx);
+}
+/** Rebuild series geometry only when a sample was added, the chart moved, or on reset. */
+function fDrawChart(ctx){
+  const F=flowsState(ctx), sc=ctx.scene, fr=sc.recs.get('chart'); if(!fr||!F.chartDirty) return; F.chartDirty=false;
+  const x0=fr.x+14, y0=fr.y+54, w=432, h=250;
+  let mx=10; for(const v of F.hist.R) if(v>mx) mx=v; for(const v of F.hist.F) if(v>mx) mx=v; mx=Math.ceil(mx/20)*20;
+  const mk=a=>{ const p=[]; for(let i=0;i<a.length;i++) p.push(x0+i/(FLOW_SIM.HMAX-1)*w, y0+h-a[i]/mx*h); if(p.length<4) p.push(x0,y0+h,x0+1,y0+h); return p; };
+  sc.batch(()=>{ sc.patch('chart:R',{pts:mk(F.hist.R)}); sc.patch('chart:F',{pts:mk(F.hist.F)}); sc.patch('chart:base',{pts:[x0,y0+h,x0+w,y0+h]}); fSetText(ctx,'chart:max',`max ${mx}`); });
+}
+function flowsReset(ctx){
+  const F=flowsState(ctx);
+  Object.assign(F,{R:80,F:12,t:0,acc:0,sampleAcc:0,chartDirty:true}); F.hist.R.length=0; F.hist.F.length=0;
+  for(const k in F.phase) F.phase[k]=0;
+  for(const k in FLOW_DEF) fSetCtrl(ctx,k,FLOW_DEF[k]);
+  ctx.scene.batch(()=>{ for(const id in F.phase) for(let k=0;k<7;k++) if(ctx.scene.has(`${id}:p${k}`)) ctx.scene.patch(`${id}:p${k}`,{at:{id,port:{t:k/7}}}); });
+  fVisuals(ctx,0); fDrawChart(ctx);
+}
+
+/* ---- stages ---- */
+function flowsStage1(ctx){
+  ctx.bounds=()=>({x0:-190,y0:-10,x1:1400,y1:700});
+  fStock(ctx,'prey',300,100,'Prey',FLOW_COL.prey);
+  fStock(ctx,'pred',300,460,'Predators',FLOW_COL.pred);
+  fVisuals(ctx,0);
+}
+function flowsStage2(ctx){
+  fCloud(ctx,'src1',90,160,'source'); fCloud(ctx,'snk1',780,160,'sink');
+  fCloud(ctx,'src2',90,520,'source'); fCloud(ctx,'snk2',780,520,'sink');
+  fPipe(ctx,'fB','src1','r','prey','l'); fPipe(ctx,'fP','prey','r','snk1','l');
+  fPipe(ctx,'fPB','src2','r','pred','l'); fPipe(ctx,'fPD','pred','r','snk2','l');
+}
+function flowsStage3(ctx){
+  fValve(ctx,'fB','net prey growth'); fValve(ctx,'fP','predation');
+  fValve(ctx,'fPB','predator births'); fValve(ctx,'fPD','predator deaths');
+  for(const id of ['fB','fP','fPB','fPD']) fParticles(ctx,id);
+  fVisuals(ctx,0);
+}
+function flowsStage4(ctx){
+  fMeasure(ctx,'mCrowd',207,340,'crowding R/K'); fMeasure(ctx,'mPred',613,340,'kills b·R·F');
+  fInfo(ctx,'prey','fB:valve',15,0.35); fInfo(ctx,'prey','mCrowd',33); fInfo(ctx,'mCrowd','fB:valve',15);
+  fInfo(ctx,'prey','mPred',33); fInfo(ctx,'pred','mPred',33,-0.18); fInfo(ctx,'mPred','fP:valve',15,0.12);
+  fInfo(ctx,'mPred','fPB:valve',15,0.12); fInfo(ctx,'pred','fPD:valve',15,0.35);
+  fVisuals(ctx,0);
+}
+function flowsStage5(ctx){
+  fControl(ctx,'a',60,40); fControl(ctx,'K',-170,330); fControl(ctx,'b',690,400); fControl(ctx,'c',60,640); fControl(ctx,'d',540,640);
+  fInfo(ctx,'ctl:a','fB:valve',15,-0.2); fInfo(ctx,'ctl:K','mCrowd',33,0.1); fInfo(ctx,'ctl:b','mPred',33,0.1);
+  fInfo(ctx,'ctl:c','fPB:valve',15,0.2); fInfo(ctx,'ctl:d','fPD:valve',15,-0.2);
+}
+function flowsStage6(ctx){
+  const steps=flowsAdvance(ctx,2.0);   // exactly 200 steps of 0.01 model time
+  flowsState(ctx).lastSteps=steps; fVisuals(ctx,0);
+}
+function flowsStage7(ctx){ fChart(ctx); }
+function flowsStage8(ctx){
+  const F=flowsState(ctx), sc=ctx.scene, api=ctx.api;
+  F.running=!ctx.tutorial;
+  ctx.use({
+    tick(dt){
+      if(F.running){ flowsAdvance(ctx,dt*F.speed*FLOW_SIM.RATE); fDrawChart(ctx); }
+      fVisuals(ctx,F.running?dt:0);
+      if(F.rd){ F.rd('model time',F.t.toFixed(2)); F.rd('prey R',F.R.toFixed(2)); F.rd('predators F',F.F.toFixed(2)); }
+      return F.running;
+    },
+    onDown(hit,wx,wy){
+      const d=hit&&hit.m.data; if(!d) return null;
+      if(d.ctrl){
+        const id='ctl:'+d.ctrl, [lo,hi]=FLOW_RANGE[d.ctrl], v0=F.P[d.ctrl];
+        if(d.part==='label'){ const tr=sc.recs.get(id), ox=wx-tr.x, oy=wy-tr.y, x0=tr.x, y0=tr.y; return {move:(x,y)=>sc.patch(id,{x:x-ox,y:y-oy}), cancel:()=>sc.patch(id,{x:x0,y:y0})}; }
+        const setAt=x=>{ const tr=sc.recs.get(id); fSetCtrl(ctx,d.ctrl,lo+clamp((x-tr.x)/140,0,1)*(hi-lo)); };
+        setAt(wx); return {move:x=>setAt(x), cancel:()=>fSetCtrl(ctx,d.ctrl,v0)};
+      }
+      if(d.drag){ const m=sc.get(d.drag), ox=wx-m.x, oy=wy-m.y, x0=m.x, y0=m.y;
+        const put=(x,y)=>{ sc.patch(d.drag,{x,y}); if(d.drag==='chart'){ F.chartDirty=true; fDrawChart(ctx); } };
+        return {move:(x,y)=>put(x-ox,y-oy), cancel:()=>put(x0,y0)}; }
+      return null;
+    },
+    onKey(e){ if(e.key===' '){ e.preventDefault(); F.running=!F.running; if(F.runT) F.runT.checked=F.running; } }
+  });
+  api.group('Simulation');
+  F.rd=api.readouts(['model time','prey R','predators F']);
+  F.runT=api.toggle('Running',F.running,v=>F.running=v);
+  api.slider('Speed (1× = 2.4 model units / s)',0.25,4,0.25,1,v=>F.speed=v,v=>v+'×');
+  api.buttons([['Reset',()=>flowsReset(ctx),true],['Step 0.1',()=>{ flowsAdvance(ctx,0.1); fDrawChart(ctx); fVisuals(ctx,0); }],['Fit',()=>ctx.fit(null,20)]]);
+  api.group('Notation');
+  api.html(`<div class="legend">
+    <span class="sw" style="border:2px solid ${FLOW_COL.prey};background:rgba(52,211,153,.2)"></span><span><b>Stock</b> — accumulates; the fill is its level</span>
+    <span class="sw" style="background:${FLOW_COL.pipe};height:8px"></span><span><b>Flow</b> — pipe with a ⋈ valve setting its rate; dots move at that rate</span>
+    <span class="sw" style="border:1.5px dashed #4b5563;border-radius:50%"></span><span><b>Source / sink</b> — outside the model boundary</span>
+    <span class="sw" style="border:2px solid ${FLOW_COL.meas};border-radius:50%"></span><span><b>Measure</b> — derived value computed each step</span>
+    <span class="sw" style="background:${FLOW_COL.ctrl};height:6px"></span><span><b>Control</b> — drag the knob to change a parameter</span>
+    <span class="sw" style="border-top:1.5px dashed ${FLOW_COL.info};height:0"></span><span><b>Information link</b> — what each rate depends on</span></div>`);
+  api.note('Everything is draggable. Valves, dots and links are derived marks, so they follow whatever they depend on. The model advances in fixed 0.01 steps however fast the display refreshes.');
+  flowsReset(ctx);
+}
+const DEMO_FLOWS={key:'flows',title:'Stocks & flows',seed:1,hint:'Drag knobs to change parameters · drag anything to rearrange · space pauses',
+  blurb:'A live system-dynamics model: logistic prey and the predators that eat them. Stocks, flows, sources, sinks, measures and controls are all ordinary marks in one scene.',
+  stages:[flowsStage1,flowsStage2,flowsStage3,flowsStage4,flowsStage5,flowsStage6,flowsStage7,flowsStage8]};
+
+/* =====================================================================
+   DEMO — GANTT BUILDER with FS / SS / FF / SF dependencies
+   ===================================================================== */
+const GW={DW:34,RH:40,HX:220,HY:64}, G_T0=new Date(2026,8,21);
+const G_PAL=['#6ea8fe','#a78bfa','#34d399','#f59e0b','#f472b6','#22d3ee'];
+const DEP_TYPES={FS:'finish → start',SS:'start → start',FF:'finish → finish',SF:'start → finish'};
+const GANTT_SEED=[['Discovery',0,5,0],['Requirements',5,4,0],['Architecture',9,5,1],['Backend API',14,12,2],['Frontend shell',14,8,3],
+  ['Data migration',12,9,4],['Integration',26,6,2],['QA pass',32,7,5],['Docs',30,6,3],['Launch',39,1,1],['Legacy support',24,15,4]];
+const GANTT_LINKS=[[0,1,'FS'],[1,2,'FS'],[2,3,'FS'],[2,4,'FS'],[3,5,'SS'],[3,6,'FS'],[4,6,'FS'],[6,7,'FS'],[5,7,'FS'],[4,8,'FS'],[7,8,'FF'],[7,9,'FS'],[8,9,'FS'],[9,10,'SF']];
+
+function ganttState(ctx){ return ctx.st.gantt || (ctx.st.gantt={tasks:[],deps:new Map(),sel:null,D:84,uid:0,sig:new Map(),dsig:new Map(),calD:0,gsig:'',bsig:'',enforce:false,show:{calendar:false,bars:false,deps:false,critical:false,handles:false},note:'',rd:null,selBox:null}); }
+const gDate=d=>{ const x=new Date(G_T0); x.setDate(G_T0.getDate()+d); return x; };
+const gFmt=d=>gDate(d).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+const gTask=(ctx,uid)=>ganttState(ctx).tasks.find(t=>t.uid===uid);
+function ganttAddTask(ctx,name,start,dur,ci){ const G=ganttState(ctx), t={uid:'t'+(G.uid++),name,start,dur,color:G_PAL[(ci??G.tasks.length)%G_PAL.length],float:0}; G.tasks.push(t); return t; }
+
+/** Earliest start a dependency allows its successor s, given predecessor p. */
+function depMinStart(type,p,s){
+  switch(type){
+    case 'FS': return p.start+p.dur;          // s starts after p finishes
+    case 'SS': return p.start;                // s starts after p starts
+    case 'FF': return p.start+p.dur-s.dur;    // s finishes after p finishes
+    case 'SF': return p.start-s.dur;          // s finishes after p starts
+  }
+}
+/** Latest finish a dependency allows its predecessor p, given s's latest finish. */
+function depMaxFinish(type,p,s,lfS){
+  switch(type){
+    case 'FS': return lfS-s.dur;
+    case 'SS': return lfS-s.dur+p.dur;
+    case 'FF': return lfS;
+    case 'SF': return lfS+p.dur;
+  }
+}
+const ganttPreds=(ctx,u)=>[...ganttState(ctx).deps.values()].filter(d=>d.s===u);
+const ganttSuccs=(ctx,u)=>[...ganttState(ctx).deps.values()].filter(d=>d.p===u);
+function ganttEarliest(ctx,t){ let es=0; for(const d of ganttPreds(ctx,t.uid)){ const p=gTask(ctx,d.p); if(p) es=Math.max(es,depMinStart(d.type,p,t)); } return es; }
+function ganttReaches(ctx,a,b){ const st=[a], seen=new Set(); while(st.length){ const x=st.pop(); if(x===b) return true; if(seen.has(x)) continue; seen.add(x); for(const d of ganttSuccs(ctx,x)) st.push(d.s); } return false; }
+/** Add (or retype) a dependency. Any relationship that closes a loop is refused, whatever its type. */
+function ganttLink(ctx,p,s,type){
+  const G=ganttState(ctx), k=p+'>'+s;
+  if(p===s) return {ok:false,why:'A task can’t depend on itself.'};
+  if(!DEP_TYPES[type]) return {ok:false,why:'Unknown dependency type.'};
+  if(G.deps.has(s+'>'+p) || ganttReaches(ctx,s,p)) return {ok:false,why:'That dependency would create a loop.'};
+  G.deps.set(k,{k,p,s,type}); return {ok:true};
+}
+function ganttTopo(ctx){
+  const G=ganttState(ctx), indeg=new Map(G.tasks.map(t=>[t.uid,0]));
+  for(const d of G.deps.values()) indeg.set(d.s,(indeg.get(d.s)||0)+1);
+  const q=G.tasks.filter(t=>!indeg.get(t.uid)).map(t=>t.uid), out=[];
+  while(q.length){ const u=q.shift(); out.push(gTask(ctx,u)); for(const d of ganttSuccs(ctx,u)){ indeg.set(d.s,indeg.get(d.s)-1); if(!indeg.get(d.s)) q.push(d.s); } }
+  return out;
+}
+/** Forward pass pushes tasks to their earliest allowed start (manual later starts are kept).
+    Backward pass gives each task's latest finish; float is measured against the current dates. */
+function ganttSchedule(ctx){
+  const G=ganttState(ctx), order=ganttTopo(ctx);
+  if(G.enforce) for(const t of order){ const es=ganttEarliest(ctx,t); if(t.start<es) t.start=es; }
+  const end=G.tasks.reduce((m,t)=>Math.max(m,t.start+t.dur),0), LF=new Map();
+  for(const t of [...order].reverse()){
+    let lf=end; for(const d of ganttSuccs(ctx,t.uid)){ const s=gTask(ctx,d.s); lf=Math.min(lf,depMaxFinish(d.type,t,s,LF.get(d.s))); }
+    LF.set(t.uid,lf); t.float=lf-(t.start+t.dur);
+  }
+  return end;
+}
+function ganttFitName(name){ let s=name; while(s.length>3 && textBox(s,13,400).adv>GW.HX-28) s=s.slice(0,-2); return s===name?s:s.trimEnd()+'…'; }
+function ganttCalendar(ctx){
+  const G=ganttState(ctx), sc=ctx.scene, {DW,RH,HX,HY}=GW, D=G.D, rows=Math.max(G.tasks.length,1), y1=HY+rows*RH;
+  sc.set('hdr',{kind:'rect',x:0,y:0,w:HX+D*DW,h:HY,fill:'#0b0e13',z:1,mini:false});
+  if(!sc.has('hdr:t')) sc.set('hdr:t',{kind:'text',x:14,y:HY/2,text:'Task',size:12,weight:600,color:C.dim,z:5,mini:false});
+  for(let d=G.calD;d<D;d++){ const x=HX+d*DW;
+    sc.set('gd:'+d,{kind:'text',x:x+DW/2,y:HY-14,text:String(gDate(d).getDate()),size:10,align:'center',color:d%7>=5?'#5b6472':C.dim,z:5,minScale:0.55});
+    if(d%7===0) sc.set('gw:'+d,{kind:'text',x:x+6,y:18,text:'Week of '+gFmt(d),size:12,weight:600,color:C.text,z:5,minScale:0.2}); }
+  for(let d=D;d<G.calD;d++){ sc.remove('gd:'+d); sc.remove('gw:'+d); }
+  G.calD=D;
+  const sig=D+'|'+rows; if(sig===G.gsig) return; const old=G.gsig?+G.gsig.split('|')[0]:0; G.gsig=sig;
+  for(let d=0;d<=D;d++){ const x=HX+d*DW, wk=d%7===0; sc.set('g:'+d,{kind:'path',pts:[x,wk?4:HY,x,y1],stroke:wk?'#2b3340':'#1a212b',sw:1,z:1,minScale:wk?0:0.35,mini:false}); }
+  for(let d=D+1;d<=old;d++) sc.remove('g:'+d);
+  for(let w=0;w<Math.max(D,old)/7;w++){ if(w<D/7) sc.set('we:'+w,{kind:'rect',x:HX+(w*7+5)*DW,y:HY,w:2*DW,h:y1-HY,fill:'rgba(148,163,184,.045)',z:1,mini:false}); else sc.remove('we:'+w); }
+  sc.set('div',{kind:'path',pts:[HX,0,HX,y1],stroke:'#2b3340',sw:1.5,z:2,mini:false});
+  sc.set('base',{kind:'path',pts:[HX+1,HY-4,HX+1,y1],stroke:'rgba(248,113,113,.75)',sw:1.5,z:2});
+}
+function ganttRows(ctx){
+  const G=ganttState(ctx), sc=ctx.scene, {DW,RH,HX,HY}=GW, S=G.show;
+  G.tasks.forEach((t,row)=>{
+    const crit=S.critical&&t.float<=0, isSel=G.sel===t.uid, key=[row,t.start,t.dur,t.name,crit,isSel,t.color,S.bars,S.handles,G.D].join('|');
+    if(G.sig.get(t.uid)===key) return; G.sig.set(t.uid,key);
+    const y=HY+row*RH;
+    sc.set('rw:'+t.uid,{kind:'rect',x:0,y,w:HX+G.D*DW,h:RH,fill:row%2?'#10141a':'#0d1117',z:0,mini:false});
+    sc.set('nm:'+t.uid,{kind:'text',x:14,y:y+RH/2,text:ganttFitName(t.name),size:13,weight:isSel?700:400,color:isSel?'#ffffff':C.text,z:5,data:{task:t.uid,part:'name'}});
+    if(!S.bars) return;
+    sc.set('b:'+t.uid,{kind:'rect',x:HX+t.start*DW+1,y:y+8,w:Math.max(6,t.dur*DW-2),h:RH-16,r:5,fill:t.color,stroke:isSel?'#ffffff':crit?C.red:'rgba(0,0,0,0)',sw:(isSel||crit)?2:0,z:3,data:{task:t.uid,part:'bar'}});
+    if(!sc.has('bl:'+t.uid)) sc.set('bl:'+t.uid,{kind:'text',at:{id:'b:'+t.uid,port:'l',dx:8},text:'',size:11.5,weight:600,color:'#0b0e13',z:4,minScale:0.45});
+    sc.patch('bl:'+t.uid,{text:`${t.dur}d`});
+    if(S.handles && !sc.has('hs:'+t.uid)){
+      sc.set('hs:'+t.uid,{kind:'circle',at:{id:'b:'+t.uid,port:'l',dx:-14},r:5,fill:'#0e1116',stroke:C.dim,sw:1.5,z:6,data:{task:t.uid,part:'link',side:'S'},mini:false});
+      sc.set('hf:'+t.uid,{kind:'circle',at:{id:'b:'+t.uid,port:'r',dx:14},r:5,fill:'#0e1116',stroke:C.dim,sw:1.5,z:6,data:{task:t.uid,part:'link',side:'F'},mini:false});
+    }
+  });
+}
+function ganttDeps(ctx){
+  const G=ganttState(ctx), sc=ctx.scene;
+  for(const d of G.deps.values()){
+    const isSel=G.sel===d.k, sig=d.type+'|'+isSel; if(G.dsig.get(d.k)===sig) continue; G.dsig.set(d.k,sig);
+    sc.set('d:'+d.k,{kind:'link',from:{id:'b:'+d.p,port:d.type[0]==='S'?'l':'r'},to:{id:'b:'+d.s,port:d.type[1]==='S'?'l':'r'},route:'ortho',gap:26,
+      stroke:isSel?C.acc:'#7b8696',sw:isSel?2.5:1.5,arrow:true,arrowSize:7,z:2,data:{dep:d.k}});
+    sc.set('dl:'+d.k,{kind:'text',at:{id:'d:'+d.k,port:'mid',dx:10,dy:-8},text:d.type,size:9.5,weight:700,align:'center',color:isSel?C.acc:'#9aa4b2',z:5,minScale:0.55,data:{dep:d.k}});
+  }
+}
+function ganttRender(ctx){
+  const G=ganttState(ctx), sc=ctx.scene, end=ganttSchedule(ctx);
+  G.D=clamp(Math.ceil((end+14)/7)*7,84,371);
+  sc.batch(()=>{ if(G.show.calendar) ganttCalendar(ctx); ganttRows(ctx); if(G.show.deps) ganttDeps(ctx); });
+  const bs=G.D+'|'+G.tasks.length; if(bs!==G.bsig){ G.bsig=bs; ctx.refreshMini(); }
+  if(G.rd){ const n=t=>[...G.deps.values()].filter(d=>d.type===t).length;
+    G.rd('tasks',G.tasks.length); G.rd('dependencies',`${G.deps.size} (FS ${n('FS')} · SS ${n('SS')} · FF ${n('FF')} · SF ${n('SF')})`);
+    G.rd('duration',end+' days'); G.rd('finish',end?gFmt(end-1):'—'); G.rd('critical tasks',G.tasks.filter(t=>t.float<=0).length); }
+  if(G.selBox) ganttSelUI(ctx);
+  return end;
+}
+function ganttDeleteTask(ctx,u){
+  const G=ganttState(ctx), sc=ctx.scene, i=G.tasks.findIndex(t=>t.uid===u); if(i<0) return;
+  for(const [k,d] of [...G.deps]) if(d.p===u||d.s===u){ G.deps.delete(k); G.dsig.delete(k); }
+  sc.batch(()=>{ sc.remove('b:'+u); sc.remove('nm:'+u); sc.remove('rw:'+u); });
+  G.tasks.splice(i,1); G.sig.clear(); if(G.sel===u) G.sel=null; ganttRender(ctx);
+}
+function ganttDeleteDep(ctx,k){ const G=ganttState(ctx); G.deps.delete(k); G.dsig.delete(k); ctx.scene.remove('d:'+k); if(G.sel===k) G.sel=null; G.sig.clear(); ganttRender(ctx); }
+function ganttSelect(ctx,id){ const G=ganttState(ctx); G.sel=G.sel===id?null:id; G.sig.clear(); G.dsig.clear(); ganttRender(ctx); }
+function ganttSelUI(ctx){
+  const G=ganttState(ctx), box=G.selBox; box.textContent='';
+  if(!G.sel){ box.appendChild(el('div','muted','Nothing selected. Tap a bar or an arrow.')); return; }
+  const d=G.deps.get(G.sel), t=d?null:gTask(ctx,G.sel), row=(k,v)=>{ const r=el('div'); r.append(el('span','muted',k+' '),el('span',null,v)); box.appendChild(r); };
+  const btns=el('div','btns'), btn=(label,fn)=>{ const b=el('button','btn',label); b.type='button'; b.onclick=()=>{ fn(); wake(); }; btns.appendChild(b); return b; };
+  if(t){ row('Task',t.name); row('Starts',gFmt(t.start)); row('Duration',t.dur+' days'); row('Float',t.float+' days');
+    btn('Rename',()=>ganttRename(ctx,t)); btn('Delete',()=>ganttDeleteTask(ctx,t.uid)); }
+  else if(d){ row('Dependency',`${gTask(ctx,d.p).name} → ${gTask(ctx,d.s).name}`); row('Type',`${d.type} · ${DEP_TYPES[d.type]}`);
+    for(const ty of Object.keys(DEP_TYPES)){ const b=btn(ty,()=>{ d.type=ty; G.dsig.delete(d.k); G.sig.clear(); ganttRender(ctx); }); b.setAttribute('aria-pressed',String(ty===d.type)); if(ty===d.type) b.classList.add('pri'); }
+    btn('Delete',()=>ganttDeleteDep(ctx,d.k)); }
+  box.appendChild(btns);
+}
+function ganttRename(ctx,t){ const n=prompt('Task name',t.name); if(n && n.trim()){ t.name=n.trim().slice(0,60); ganttState(ctx).sig.clear(); ganttRender(ctx); } }
+const ganttBounds=ctx=>{ const G=ganttState(ctx); return {x0:0,y0:0,x1:GW.HX+G.D*GW.DW,y1:GW.HY+Math.max(G.tasks.length,1)*GW.RH+20}; };
+
+/* ---- stages ---- */
+function ganttStage1(ctx){
+  ctx.bounds=()=>ganttBounds(ctx);
+  for(const [name,start,dur,ci] of GANTT_SEED) ganttAddTask(ctx,name,start,dur,ci);
+  ganttRender(ctx);
+}
+function ganttStage2(ctx){ ganttState(ctx).show.calendar=true; ganttRender(ctx); }
+function ganttStage3(ctx){ ganttState(ctx).show.bars=true; ganttRender(ctx); }
+function ganttStage4(ctx){
+  const G=ganttState(ctx);
+  for(const [a,b,type] of GANTT_LINKS) ganttLink(ctx,G.tasks[a].uid,G.tasks[b].uid,type);
+  G.show.deps=true; ganttRender(ctx);
+}
+function ganttStage5(ctx){
+  const G=ganttState(ctx); G.enforce=true;
+  G.note=ganttLink(ctx,G.tasks[9].uid,G.tasks[0].uid,'FS').why;   // Launch → Discovery would loop
+  G.sig.clear(); ganttRender(ctx);
+}
+function ganttStage6(ctx){ const G=ganttState(ctx); G.show.critical=true; G.sig.clear(); ganttRender(ctx); }
+function ganttStage7(ctx){
+  const G=ganttState(ctx), sc=ctx.scene, {DW,HX}=GW;
+  G.show.handles=true; G.sig.clear(); ganttRender(ctx);
+  ctx.use({
+    onDown(hit,wx,wy){
+      const d=hit&&hit.m.data&&{...hit.m.data}; if(!d) return null;
+      if(d.dep) return {up:(x,y,moved)=>{ if(!moved) ganttSelect(ctx,d.dep); }};
+      const t=gTask(ctx,d.task); if(!t) return null;
+      if(d.part==='name') return {up:(x,y,moved)=>{ if(!moved) ganttSelect(ctx,t.uid); }};
+      if(d.part==='link'){ const br=sc.recs.get('b:'+t.uid); if(wx>=br.x && wx<=br.x+br.m.w) d.part='bar'; }
+      if(d.part==='link'){
+        const port=d.side==='S'?'l':'r';
+        sc.set('tmp',{kind:'link',from:{id:'b:'+t.uid,port},to:{x:wx,y:wy},route:'straight',stroke:C.acc,sw:2,dash:[6,4],arrow:true,arrowSize:8,z:6});
+        const drop=(x,y)=>{ const h=sc.hitTest(ctx.main,x,y), hd=h&&h.m.data; if(!hd||hd.part!=='bar'||hd.task===t.uid) return null;
+          const br=sc.recs.get('b:'+hd.task); return {task:hd.task,type:d.side+(x<br.x+br.m.w/2?'S':'F')}; };
+        const clean=()=>{ sc.remove('tmp'); sc.remove('tmpl'); };
+        return {
+          move(x,y){ const q=drop(x,y); sc.patch('tmp',{to:{x,y}}); sc.set('tmpl',{kind:'text',x:x+12,y:y-12,text:q?`${q.type} · ${DEP_TYPES[q.type]}`:'drop on the start or finish half of a bar',size:11,weight:600,color:q?C.acc:C.dim,z:7}); },
+          cancel: clean,
+          up(x,y){ const q=drop(x,y); clean(); if(!q) return; const v=ganttLink(ctx,t.uid,q.task,q.type); if(!v.ok) toast(v.why); G.dsig.clear(); ganttRender(ctx); }
+        };
+      }
+      if(d.part==='bar'){
+        const br=sc.recs.get('b:'+t.uid), edge=Math.max(6,10/ctx.main.cam.s), resize=wx>br.x+br.m.w-edge, grab=wx-(HX+t.start*DW);
+        const snap=new Map(G.tasks.map(x=>[x.uid,[x.start,x.dur]]));
+        const restore=()=>{ for(const x of G.tasks){ const s=snap.get(x.uid); if(s){ x.start=s[0]; x.dur=s[1]; } } };
+        return {
+          move(x){ restore();   // recompute from the snapshot so dragging back un-pushes successors
+            if(resize) t.dur=clamp(Math.round((x-(HX+t.start*DW))/DW),1,120);
+            else t.start=clamp(Math.round((x-grab-HX)/DW),ganttEarliest(ctx,t),364-t.dur);
+            ganttRender(ctx); },
+          cancel(){ restore(); ganttRender(ctx); },
+          up(x,y,moved){ if(!moved) ganttSelect(ctx,t.uid); }
+        };
+      }
+      return null;
+    },
+    onTap(hit){ if(!hit && G.sel) ganttSelect(ctx,G.sel); },
+    onDbl(hit){ const d=hit&&hit.m.data; if(d&&d.task){ const t=gTask(ctx,d.task); if(t) ganttRename(ctx,t); } },
+    onKey(e){ if((e.key==='Delete'||e.key==='Backspace') && G.sel){ e.preventDefault(); if(G.deps.has(G.sel)) ganttDeleteDep(ctx,G.sel); else ganttDeleteTask(ctx,G.sel); } }
+  });
+}
+function ganttStage8(ctx){
+  const G=ganttState(ctx), api=ctx.api;
+  ctx.addMini();
+  api.group('Schedule');
+  G.rd=api.readouts(['tasks','dependencies','duration','finish','critical tasks']);
+  api.buttons([['Add task',()=>{ const t=ganttAddTask(ctx,'Task '+(G.tasks.length+1),0,3); G.sel=t.uid; G.sig.clear(); ganttRender(ctx); },true],['Fit',()=>ctx.fit(null,16)]]);
+  api.group('Selection'); G.selBox=api.box();
+  api.group('How to edit');
+  api.note('<b>Drag a bar</b> to move it. It can’t start before its dependencies allow, and moving it later pushes what depends on it; drag back and they return. <b>Drag near the right edge</b> to resize.');
+  api.note('<b>Link two tasks</b> by dragging from a bar’s left ○ (its start) or right ○ (its finish) onto the start or finish half of another bar. That gives all four types: <b>FS</b> finish→start, <b>SS</b> start→start, <b>FF</b> finish→finish, <b>SF</b> start→finish. Loops are refused.');
+  api.note('<b>Tap</b> a bar or an arrow to select it; change a link’s type or delete it in Selection. <b>Double-tap</b> a task to rename it. Red outlines are zero-float tasks. The red line is the example’s fixed baseline date (Sep 21, 2026), not today.');
+  ganttRender(ctx);
+}
+const DEMO_GANTT={key:'gantt',title:'Gantt builder',seed:5,hint:'Drag bars · drag ○ handles onto the start or finish half of another bar',
+  blurb:'A schedule editor with all four dependency types (FS, SS, FF, SF), push-forward constraint enforcement, float, a growing time horizon, and a minimap.',
+  stages:[ganttStage1,ganttStage2,ganttStage3,ganttStage4,ganttStage5,ganttStage6,ganttStage7,ganttStage8]};
+
+/* =====================================================================
+   DEMO — NODE GRAPH (GraphEdit-style editor; not a shader evaluator)
+   ===================================================================== */
+const PORT_TYPES={float:'#6ea8fe',vec:'#a78bfa',color:'#f472b6'};
+const NODE_W=176;
+const GRAPH_NODES=[
+  ['uv','UV',[],[['uv','vec']],'#a78bfa'],
+  ['time','Time',[],[['t','float']],'#34d399'],
+  ['k','Constant 4.0',[],[['v','float']],'#34d399'],
+  ['sin','Sin',[['x','float']],[['y','float']],'#6ea8fe'],
+  ['noise','Noise',[['uv','vec'],['scale','float']],[['n','float']],'#a78bfa'],
+  ['mul','Multiply',[['a','float'],['b','float']],[['r','float']],'#6ea8fe'],
+  ['ca','Color A',[],[['color','color']],'#f472b6'],
+  ['cb','Color B',[],[['color','color']],'#f472b6'],
+  ['mix','Mix',[['a','color'],['b','color'],['t','float']],[['color','color']],'#f472b6'],
+  ['out','Output',[['color','color'],['alpha','float']],[],'#f59e0b']
+];
+const GRAPH_EDGES=[['uv:o0','noise:i0'],['k:o0','noise:i1'],['time:o0','sin:i0'],['sin:o0','mul:i0'],['noise:o0','mul:i1'],['ca:o0','mix:i0'],['cb:o0','mix:i1'],['mul:o0','mix:i2'],['mix:o0','out:i0']];
+
+function graphState(ctx){ return ctx.st.graph || (ctx.st.graph={nodes:new Map(),links:new Map(),frames:new Map(),sel:null,snap:false,tween:new Map(),top:0,nextN:0,nextL:0,note:'',onNodeTap:null}); }
+const nodeOf = port => port.slice(0,port.lastIndexOf(':'));
+function nodePos(ctx,id){ const r=ctx.scene.recs.get(id); return [r.x,r.y]; }
+function setNodePos(ctx,id,x,y){
+  const m=ctx.scene.get(id);
+  if(m.at){ const f=ctx.scene.recs.get(m.at.id); ctx.scene.patch(id,{at:{id:m.at.id,dx:x-f.x,dy:y-f.y}}); }
+  else ctx.scene.patch(id,{x,y});
+}
+
+/** A node is one positioned body; header and title are anchored to it. */
+function nodeBody(ctx,id,title,x,y,color,rows){
+  const G=graphState(ctx), sc=ctx.scene, h=40+Math.max(rows,1)*24+10, o=++G.top*10;
+  sc.batch(()=>{
+    sc.set(id,{kind:'rect',x,y,w:NODE_W,h,r:8,fill:'#1a2029',stroke:'#2e3643',sw:1.5,z:2,order:o,data:{node:id}});
+    sc.set(id+':hd',{kind:'rect',at:{id},w:NODE_W,h:28,r:8,fill:color,z:2,order:o+1,data:{node:id}});
+    sc.set(id+':hd2',{kind:'rect',at:{id,dy:16},w:NODE_W,h:12,fill:color,z:2,order:o+2,data:{node:id}});
+    sc.set(id+':t',{kind:'text',at:{id,dx:12,dy:14},text:title,size:13,weight:600,color:'#0b0e13',z:2,order:o+3,data:{node:id}});
+  });
+  G.nodes.set(id,{id,title,h,order:o,parts:[id,id+':hd',id+':hd2',id+':t']});
+  return id;
+}
+/** Ports carry a model type in data; colour is only a cue. */
+function nodePorts(ctx,id,ins,outs){
+  const G=graphState(ctx), sc=ctx.scene, N=G.nodes.get(id), o=N.order;
+  sc.batch(()=>{
+    ins.forEach(([name,type],i)=>{ const p=`${id}:i${i}`;
+      sc.set(p,{kind:'circle',at:{id,dy:52+i*24},r:6,fill:'#0e1116',stroke:PORT_TYPES[type],sw:2.5,z:2,order:o+4,data:{port:p,node:id,io:'in',type}});
+      sc.set(p+':l',{kind:'text',at:{id:p,dx:13},text:name,size:11.5,color:'#aeb6c1',z:2,order:o+5,minScale:0.45});
+      N.parts.push(p,p+':l'); });
+    outs.forEach(([name,type],i)=>{ const p=`${id}:o${i}`;
+      sc.set(p,{kind:'circle',at:{id,dx:NODE_W,dy:52+i*24},r:6,fill:PORT_TYPES[type],stroke:'#0e1116',sw:2,z:2,order:o+4,data:{port:p,node:id,io:'out',type}});
+      sc.set(p+':l',{kind:'text',at:{id:p,dx:-13},text:name,size:11.5,align:'right',color:'#aeb6c1',z:2,order:o+5,minScale:0.45});
+      N.parts.push(p,p+':l'); });
+  });
+}
+function addNode(ctx,id,title,ins,outs,x,y,color){ nodeBody(ctx,id,title,x,y,color,Math.max(ins.length,outs.length)); nodePorts(ctx,id,ins,outs); return id; }
+
+/** Draw a wire between two ports. No checks — see connect(). */
+function wire(ctx,from,to){
+  const G=graphState(ctx), id='w'+(G.nextL++), type=ctx.scene.get(from).data.type;
+  ctx.scene.set(id,{kind:'link',from:{id:from,dir:[1,0]},to:{id:to,dir:[-1,0]},route:'bezier',stroke:PORT_TYPES[type],sw:2.5,z:1,data:{link:id}});
+  G.links.set(id,{id,from,to}); return id;
+}
+/** Domain maps follow the scene after cascading removals. */
+function syncGraph(ctx){ const G=graphState(ctx), sc=ctx.scene; for(const k of [...G.links.keys()]) if(!sc.has(k)) G.links.delete(k); for(const k of [...G.nodes.keys()]) if(!sc.has(k)){ G.nodes.delete(k); if(G.sel===k) G.sel=null; } }
+function incoming(ctx,port){ for(const l of graphState(ctx).links.values()) if(l.to===port) return l; return null; }
+function reaches(ctx,a,b,skip){
+  const G=graphState(ctx), st=[a], seen=new Set();
+  while(st.length){ const x=st.pop(); if(x===b) return true; if(seen.has(x)) continue; seen.add(x);
+    for(const l of G.links.values()) if(l.id!==skip && nodeOf(l.from)===x) st.push(nodeOf(l.to)); }
+  return false;
+}
+/** One predicate for drag feedback and for the final commit. */
+function canConnect(ctx,from,to,skip){
+  const a=ctx.scene.get(from), b=ctx.scene.get(to), da=a&&a.data, db=b&&b.data;
+  if(!da||!db||!da.port||!db.port) return {ok:false,why:'Both ends must be ports.'};
+  if(da.io!=='out'||db.io!=='in') return {ok:false,why:'Wires run from an output to an input.'};
+  if(da.node===db.node) return {ok:false,why:'A node can’t feed itself.'};
+  if(da.type!==db.type) return {ok:false,why:`Type mismatch: ${da.type} output → ${db.type} input.`};
+  const old=incoming(ctx,to);
+  if(reaches(ctx,db.node,da.node,skip||(old&&old.id))) return {ok:false,why:'That wire would make a cycle; this graph is acyclic.'};
+  return {ok:true};
+}
+/** Validate first; only then replace the input's existing wire. */
+function connect(ctx,from,to){
+  const v=canConnect(ctx,from,to); if(!v.ok) return v;
+  const old=incoming(ctx,to), G=graphState(ctx);
+  ctx.scene.batch(()=>{ if(old){ ctx.scene.remove(old.id); G.links.delete(old.id); } wire(ctx,from,to); });
+  return v;
+}
+function selectNode(ctx,id){
+  const G=graphState(ctx), sc=ctx.scene;
+  if(G.sel && sc.has(G.sel)) sc.patch(G.sel,{stroke:'#2e3643',sw:1.5});
+  G.sel = G.sel===id ? null : id;
+  if(G.sel){ sc.patch(G.sel,{stroke:'#ffffff',sw:2.5}); bringToFront(ctx,G.sel); }
+}
+/** Raise a node by giving all of its parts a new, larger order key. */
+function bringToFront(ctx,id){
+  const G=graphState(ctx), N=G.nodes.get(id), sc=ctx.scene; if(!N) return;
+  const base=++G.top*10, delta=base-N.order; N.order=base;
+  sc.batch(()=>{ for(const p of N.parts){ const m=sc.get(p); if(m) sc.patch(p,{order:m.order+delta}); } });
+}
+function deleteNode(ctx,id){ ctx.scene.remove(id); syncGraph(ctx); }
+function graphFrame(ctx,id,x,y,w,h,title){
+  const sc=ctx.scene;
+  sc.batch(()=>{
+    sc.set(id,{kind:'rect',x,y,w,h,r:10,fill:'rgba(110,168,254,.05)',stroke:'rgba(110,168,254,.4)',sw:1.5,dash:[6,5],z:0,data:{frame:id}});
+    sc.set(id+':t',{kind:'text',at:{id,dx:12,dy:16},text:title,size:12,weight:600,color:'#8fb6ff',z:0,data:{frame:id}});
+  });
+  graphState(ctx).frames.set(id,{id});
+}
+/** Nodes whose centre sits inside a frame are anchored to it; others are free. */
+function parentOnDrop(ctx,id){
+  const G=graphState(ctx), sc=ctx.scene, r=sc.recs.get(id), cx=r.x+NODE_W/2, cy=r.y+r.m.h/2; let into=null;
+  for(const f of G.frames.keys()){ const fr=sc.recs.get(f); if(fr && cx>fr.x && cx<fr.x+fr.m.w && cy>fr.y && cy<fr.y+fr.m.h) into=f; }
+  const cur=r.m.at?r.m.at.id:null; if(into===cur) return;
+  const x=r.x, y=r.y;
+  if(into){ const fr=sc.recs.get(into); sc.patch(id,{at:{id:into,dx:x-fr.x,dy:y-fr.y}}); }
+  else sc.patch(id,{at:undefined,x,y});
+}
+/** Layered layout: column = longest path from a source; rows packed by current y. */
+function graphLayout(ctx,animate){
+  const G=graphState(ctx), sc=ctx.scene; syncGraph(ctx);
+  const ids=[...G.nodes.keys()], dep=new Map(ids.map(i=>[i,0])), E=[...G.links.values()].map(l=>[nodeOf(l.from),nodeOf(l.to)]);
+  for(let k=0;k<ids.length;k++){ let ch=false; for(const [a,b] of E) if(dep.has(a)&&dep.has(b)&&dep.get(b)<dep.get(a)+1){ dep.set(b,dep.get(a)+1); ch=true; } if(!ch) break; }
+  const cols=new Map(); for(const i of ids){ const d=dep.get(i); if(!cols.has(d)) cols.set(d,[]); cols.get(d).push(i); }
+  for(const [d,arr] of cols){
+    arr.sort((a,b)=>sc.recs.get(a).y-sc.recs.get(b).y); let y=-arr.reduce((s,i)=>s+G.nodes.get(i).h+36,0)/2;
+    for(const i of arr){ const t=[d*250,Math.round(y)]; y+=G.nodes.get(i).h+36;
+      if(animate && !ctx.reducedMotion) G.tween.set(i,t); else setNodePos(ctx,i,t[0],t[1]); }
+  }
+  if(!animate||ctx.reducedMotion) for(const i of ids) parentOnDrop(ctx,i);
+}
+function graphBounds(ctx){ const G=graphState(ctx), sc=ctx.scene; let b=null; for(const id of [...G.nodes.keys(),...G.frames.keys()]){ const r=sc.recs.get(id); if(r&&r.b) b=unionB(b,r.b); } return b||{x0:0,y0:0,x1:500,y1:400}; }
+
+/* ---- stages: Explore runs all of them; the tutorial runs 1..n ---- */
+function graphStage1(ctx){
+  ctx.bounds=()=>graphBounds(ctx);
+  nodeBody(ctx,'n:time','Time',0,0,'#34d399',1);
+}
+function graphStage2(ctx){
+  nodePorts(ctx,'n:time',[],[['t','float']]);
+  addNode(ctx,'n:sin','Sin',[['x','float']],[['y','float']],250,20,'#6ea8fe');
+}
+function graphStage3(ctx){
+  wire(ctx,'n:time:o0','n:sin:i0');
+}
+function graphStage4(ctx){
+  const G=graphState(ctx); let i=0;
+  for(const [key,title,ins,outs,color] of GRAPH_NODES){
+    const id='n:'+key; if(G.nodes.has(id)) continue;
+    addNode(ctx,id,title,ins,outs,(i%4)*230,160+Math.floor(i/4)*150,color); i++;
+  }
+  for(const [a,b] of GRAPH_EDGES) if(!incoming(ctx,'n:'+b)) connect(ctx,'n:'+a,'n:'+b);
+  G.note=connect(ctx,'n:time:o0','n:out:i0').why;
+}
+function graphStage5(ctx){
+  const sc=ctx.scene, G=graphState(ctx);
+  ctx.use({onDown(hit,wx,wy){
+    const d=hit&&hit.m.data; if(!d) return null;
+    if(d.node && !d.port){
+      const id=d.node, [nx,ny]=nodePos(ctx,id), ox=wx-nx, oy=wy-ny; G.tween.delete(id);
+      return { move(x,y){ let px=x-ox, py=y-oy; if(G.snap){ px=Math.round(px/10)*10; py=Math.round(py/10)*10; } setNodePos(ctx,id,px,py); },
+               up(x,y,moved){ if(moved) parentOnDrop(ctx,id); else if(G.onNodeTap) G.onNodeTap(id); },
+               cancel(){ setNodePos(ctx,id,nx,ny); } };
+    }
+    if(!d.port) return null;
+    let from=d.port, orig=null;
+    if(d.io==='in'){ orig=incoming(ctx,d.port); if(!orig) return null; from=orig.from; sc.patch(orig.id,{opacity:0.25}); }
+    const type=sc.get(from).data.type, skip=orig&&orig.id;
+    sc.set('tmp',{kind:'link',from:{id:from,dir:[1,0]},to:{x:wx,y:wy,dir:[-1,0]},route:'bezier',stroke:PORT_TYPES[type],sw:2.5,dash:[7,5],z:6});
+    const target=(x,y)=>{ const h=sc.hitTest(ctx.main,x,y), hd=h&&h.m.data; return hd&&hd.port&&hd.io==='in'?hd.port:null; };
+    const restore=()=>{ sc.remove('tmp'); if(orig && sc.has(orig.id)) sc.patch(orig.id,{opacity:1}); };
+    return {
+      move(x,y){ const t=target(x,y), ok=!t||t===(orig&&orig.to)||canConnect(ctx,from,t,skip).ok; sc.patch('tmp',{to:{x,y,dir:[-1,0]},stroke:ok?PORT_TYPES[type]:C.red}); },
+      cancel: restore,
+      up(x,y,moved){
+        const t=target(x,y);
+        if(t && orig && t===orig.to){ restore(); return; }
+        if(t){ const v=canConnect(ctx,from,t,skip);
+          if(!v.ok){ restore(); toast(v.why); return; }
+          sc.batch(()=>{ sc.remove('tmp'); if(orig){ sc.remove(orig.id); G.links.delete(orig.id); } connect(ctx,from,t); }); return; }
+        if(orig && moved){ sc.batch(()=>{ sc.remove('tmp'); sc.remove(orig.id); G.links.delete(orig.id); }); return; }
+        restore();
+      }
+    };
+  }});
+}
+function graphStage6(ctx){
+  const sc=ctx.scene, G=graphState(ctx);
+  ctx.use({
+    onDown(hit){
+      const d=hit&&hit.m.data; if(!d) return null;
+      if(d.link) return {up:(x,y,moved)=>{ if(!moved){ sc.remove(d.link); syncGraph(ctx); } }};
+      return null;
+    },
+    onTap(hit){ if(!hit && G.sel) selectNode(ctx,G.sel); },
+    onKey(e){ if((e.key==='Delete'||e.key==='Backspace') && G.sel){ e.preventDefault(); deleteNode(ctx,G.sel); } }
+  });
+  G.onNodeTap=id=>selectNode(ctx,id);
+}
+function graphStage7(ctx){
+  const G=graphState(ctx), sc=ctx.scene;
+  graphLayout(ctx,false);
+  let b=null; for(const k of ['n:ca','n:cb']) b=unionB(b,sc.recs.get(k).b);
+  graphFrame(ctx,'f:colours',b.x0-20,b.y0-36,b.x1-b.x0+40,b.y1-b.y0+56,'Colours');
+  for(const id of G.nodes.keys()) parentOnDrop(ctx,id);
+  ctx.use({
+    onDown(hit,wx,wy){ const d=hit&&hit.m.data; if(!d||!d.frame) return null;
+      const f=sc.recs.get(d.frame), ox=wx-f.x, oy=wy-f.y, x0=f.x, y0=f.y;
+      return { move(x,y){ sc.patch(d.frame,{x:x-ox,y:y-oy}); }, cancel(){ sc.patch(d.frame,{x:x0,y:y0}); } }; },
+    tick(dt){
+      if(!G.tween.size) return false; const k=1-Math.exp(-dt*10);
+      for(const [id,[tx,ty]] of G.tween){ if(!sc.has(id)){ G.tween.delete(id); continue; }
+        const [x,y]=nodePos(ctx,id), nx=x+(tx-x)*k, ny=y+(ty-y)*k;
+        if(Math.abs(tx-nx)<0.5&&Math.abs(ty-ny)<0.5){ setNodePos(ctx,id,tx,ty); G.tween.delete(id); if(!G.tween.size) for(const n of G.nodes.keys()) parentOnDrop(ctx,n); }
+        else setNodePos(ctx,id,nx,ny); }
+      return G.tween.size>0;
+    }
+  });
+}
+function graphStage8(ctx){
+  const G=graphState(ctx), api=ctx.api, T=GRAPH_NODES.filter(n=>n[2].length);
+  api.group('Graph');
+  api.buttons([
+    ['Auto-layout',()=>graphLayout(ctx,true),true],
+    ['Add node',()=>{ const v=ctx.main, [cx,cy]=v.toWorld(v.w/2,v.h/2), t=T[Math.floor(ctx.rand()*T.length)]; addNode(ctx,'n:x'+(G.nextN++),t[1],t[2],t[3],cx-NODE_W/2+ctx.rand()*60,cy-60+ctx.rand()*60,t[4]); }],
+    ['Delete selected',()=>{ if(G.sel) deleteNode(ctx,G.sel); }],
+    ['Fit',()=>ctx.fit()]
+  ]);
+  api.toggle('Snap to 10px grid',false,v=>G.snap=v);
+  api.group('How to edit');
+  api.note('<b>Drag from an output port</b> (filled) to an input port (hollow) of the same type. The wire turns red over an input it can’t join and nothing changes on release. <b>Drag a wired input</b> to move its wire; the old wire stays until you drop somewhere valid, and drops on empty space disconnect it. Escape or a cancelled touch restores it.');
+  api.note('<b>Tap a node</b> to select it; that also raises it to the front by giving its parts a new order key. <b>Delete</b> removes it, and its ports, labels and wires go with it because they depend on it. <b>Drag the Colours frame</b> and the nodes inside follow: frame → node → port → wire, resolved once per move.');
+}
+const DEMO_GRAPH={key:'graph',title:'Node graph',seed:3,hint:'Drag from an output port to an input · drag the Colours frame · tap a wire to delete',
+  blurb:'A GraphEdit-style editor: typed ports with validated wiring, bezier wires, a frame that carries its nodes, order keys for stacking, and an animated layered layout. It edits a graph; it doesn’t evaluate one.',
+  stages:[graphStage1,graphStage2,graphStage3,graphStage4,graphStage5,graphStage6,graphStage7,graphStage8]};
+
+/* =====================================================================
+   DEMO — FORCE LAYOUT  (a solver is just a producer writing positions)
+   ===================================================================== */
+const FORCE={TICK:1/60, MAX_TICKS:4, COOL:0.994, MIN_ALPHA:0.004, CUTOFF2:160000};
+const FORCE_COL=['#6ea8fe','#34d399','#f59e0b','#f472b6','#a78bfa','#22d3ee'];
+function forceState(ctx){ return ctx.st.force || (ctx.st.force={nodes:[],edges:[],deg:[],alpha:1,running:false,strength:900,len:38,acc:0,ticks:0,rd:null}); }
+/** Seeded tree-plus-extras graph: same seed, same graph. */
+function forceData(ctx,N,seed){
+  const S=forceState(ctx), r=mulberry32(seed); S.nodes=[]; S.edges=[]; S.deg=new Array(N).fill(0);
+  for(let i=0;i<N;i++){ const p=i<6?-1:Math.floor(Math.pow(r(),0.7)*i);
+    S.nodes.push({x:r()*500-250,y:r()*500-250,vx:0,vy:0,g:i<6?i:S.nodes[p].g,pin:false});
+    if(p>=0){ S.edges.push([p,i]); S.deg[p]++; S.deg[i]++; } }
+  for(let k=0;k<Math.round(N*0.22);k++){ const a=Math.floor(r()*N), b=Math.floor(r()*N); if(a!==b && S.nodes[a].g===S.nodes[b].g){ S.edges.push([a,b]); S.deg[a]++; S.deg[b]++; } }
+  S.alpha=1; S.ticks=0; S.acc=0;
+}
+function forceDots(ctx){ const S=forceState(ctx); ctx.scene.batch(()=>S.nodes.forEach((n,i)=>ctx.scene.set('f'+i,{kind:'circle',x:n.x,y:n.y,r:4,fill:'#6b7686',z:2,data:{i}}))); }
+function forceEncode(ctx){ const S=forceState(ctx); ctx.scene.batch(()=>S.nodes.forEach((n,i)=>ctx.scene.patch('f'+i,{r:4+Math.sqrt(S.deg[i])*2.2,fill:FORCE_COL[n.g],stroke:'#0e1116',sw:1.5}))); }
+function forceEdges(ctx){ const S=forceState(ctx); ctx.scene.batch(()=>S.edges.forEach(([a,b],k)=>ctx.scene.set('fe'+k,{kind:'link',from:{id:'f'+a},to:{id:'f'+b},stroke:'rgba(148,163,184,.4)',sw:1.2,z:1}))); }
+/** Repulsion (with a distance cutoff), springs along edges, a weak pull to the centre. */
+function forceForces(S){
+  const N=S.nodes, a=S.alpha;
+  for(let i=0;i<N.length;i++){ const p=N[i]; for(let j=i+1;j<N.length;j++){ const q=N[j], dx=q.x-p.x, dy=q.y-p.y, d2=dx*dx+dy*dy+0.01; if(d2>FORCE.CUTOFF2) continue; const f=S.strength*a/(d2*Math.sqrt(d2)); p.vx-=dx*f; p.vy-=dy*f; q.vx+=dx*f; q.vy+=dy*f; } }
+  for(const [ia,ib] of S.edges){ const p=N[ia], q=N[ib], dx=q.x-p.x, dy=q.y-p.y, d=Math.hypot(dx,dy)||0.01, k=(d-S.len)/d*0.12*a; p.vx+=dx*k; p.vy+=dy*k; q.vx-=dx*k; q.vy-=dy*k; }
+  for(const n of N){ n.vx-=n.x*0.004*a; n.vy-=n.y*0.004*a; }
+}
+/** One solver tick, written to the scene as one batch: each edge re-routes once. */
+function forceTick(ctx){
+  const S=forceState(ctx), sc=ctx.scene; forceForces(S);
+  sc.batch(()=>S.nodes.forEach((n,i)=>{
+    if(n.pin){ n.vx=n.vy=0; return; }
+    n.vx*=0.6; n.vy*=0.6; n.x+=clamp(n.vx,-30,30); n.y+=clamp(n.vy,-30,30);
+    const m=sc.get('f'+i); if(m && (Math.abs(m.x-n.x)>0.05||Math.abs(m.y-n.y)>0.05)) sc.patch('f'+i,{x:n.x,y:n.y});
+  }));
+  S.alpha*=FORCE.COOL; S.ticks++;
+}
+/** Fixed 60 Hz solver clock, independent of display refresh; at most 4 ticks per frame. */
+function forceRun(ctx,dt){
+  const S=forceState(ctx); if(S.alpha<FORCE.MIN_ALPHA){ S.acc=0; return 0; }
+  S.acc+=dt; let n=0; while(S.acc>=FORCE.TICK && n<FORCE.MAX_TICKS && S.alpha>=FORCE.MIN_ALPHA){ forceTick(ctx); S.acc-=FORCE.TICK; n++; }
+  if(n===FORCE.MAX_TICKS) S.acc=0; return n;
+}
+function forceBounds(ctx){ const S=forceState(ctx); let b=null; for(const n of S.nodes) b=unionB(b,{x0:n.x-20,y0:n.y-20,x1:n.x+20,y1:n.y+20}); return b||{x0:-300,y0:-300,x1:300,y1:300}; }
+
+/* ---- stages ---- */
+function forceStage1(ctx){ ctx.bounds=()=>forceBounds(ctx); forceData(ctx,40,3); forceDots(ctx); }
+function forceStage2(ctx){ forceEncode(ctx); }
+function forceStage3(ctx){ forceEdges(ctx); }
+function forceStage4(ctx){ forceTick(ctx); }
+function forceStage5(ctx){ for(let i=0;i<240;i++) forceTick(ctx); }
+function forceStage6(ctx){
+  const S=forceState(ctx), api=ctx.api; S.running=!ctx.tutorial;
+  ctx.use({
+    tick(dt){ if(S.rd){ S.rd('ticks',S.ticks); S.rd('alpha',S.alpha.toFixed(3)); } return S.running && forceRun(ctx,dt)>=0 && S.alpha>=FORCE.MIN_ALPHA; },
+    onDown(hit){ const d=hit&&hit.m.data; if(!d||d.i==null) return null; const n=S.nodes[d.i]; if(!n) return null; const x0=n.x, y0=n.y; n.pin=true;
+      return { move:(x,y)=>{ n.x=x; n.y=y; ctx.scene.patch('f'+d.i,{x,y}); S.alpha=Math.max(S.alpha,0.3); },
+               up:()=>{ n.pin=false; }, cancel:()=>{ n.pin=false; n.x=x0; n.y=y0; ctx.scene.patch('f'+d.i,{x:x0,y:y0}); } }; }
+  });
+  api.group('Layout');
+  S.rd=api.readouts(['nodes','edges','ticks','alpha']);
+  api.toggle('Running (60 solver ticks / s)',S.running,v=>{ S.running=v; });
+  api.slider('Repulsion',100,3000,50,S.strength,v=>{ S.strength=v; S.alpha=Math.max(S.alpha,0.5); });
+  api.slider('Link length',10,120,1,S.len,v=>{ S.len=v; S.alpha=Math.max(S.alpha,0.5); });
+  api.buttons([['Reheat',()=>{ S.alpha=1; },true],['Scatter',()=>{ const r=mulberry32(S.ticks+1); for(const n of S.nodes){ n.x=r()*1200-600; n.y=r()*1200-600; } S.alpha=1; },],['Tick once',()=>forceTick(ctx)],['Fit',()=>ctx.fit()]]);
+  api.note('The solver never touches edges or rendering. It writes node positions into the store inside one batch per tick; edges are derived from their endpoints and each resolves once per tick. Drag a node to pin it while dragging; Escape puts it back.');
+  S.rd('nodes',S.nodes.length); S.rd('edges',S.edges.length);
+}
+function forceStage7(ctx){
+  const S=forceState(ctx), sc=ctx.scene;
+  sc.batch(()=>{ for(let i=0;i<S.nodes.length;i++) sc.remove('f'+i); });
+  forceData(ctx,320,3); forceDots(ctx); forceEncode(ctx); forceEdges(ctx);
+  if(S.rd){ S.rd('nodes',S.nodes.length); S.rd('edges',S.edges.length); }
+  ctx.bounds=()=>({x0:-420,y0:-420,x1:420,y1:420});
+}
+const DEMO_FORCE={key:'force',title:'Force layout',seed:3,hint:'Drag nodes · switch backends while it runs',
+  blurb:'A force-directed graph where the layout solver is an outside producer on a fixed 60 Hz clock. The core has no idea layout exists.',
+  stages:[forceStage1,forceStage2,forceStage3,forceStage4,forceStage5,forceStage6,forceStage7]};
+
+/* =====================================================================
+   DEMO — STRESS  (tens of thousands of marks, LOD, two views, indexes)
+   ===================================================================== */
+const STRESS_HUE=['#6ea8fe','#34d399','#f59e0b','#f472b6','#a78bfa','#22d3ee','#fb7185'];
+function stressState(ctx){ return ctx.st.stress || (ctx.st.stress={N:0,B:{x0:0,y0:0,x1:1,y1:1},clusters:[],jitter:false,sel:null,showRegion:false,buildMs:0,benchBox:null,rd:null}); }
+/** Seeded clustered nodes. Every fourth node is a rectangle, the rest circles. */
+function stressNodes(ctx,N){
+  const S=stressState(ctx), sc=ctx.scene, r=mulberry32(11), t0=performance.now();
+  sc.clearAll(); S.N=N; S.sel=null;
+  const W=Math.sqrt(N)*70, K=Math.max(3,Math.round(N/400)), cen=[]; for(let k=0;k<K;k++) cen.push([r()*W,r()*W]);
+  const sd=W/Math.sqrt(K)*0.33, per=Math.ceil(N/K); S.clusters=[];
+  sc.batch(()=>{ for(let i=0;i<N;i++){
+    const k=Math.floor(i/per), x=cen[k][0]+gauss(r)*sd, y=cen[k][1]+gauss(r)*sd, fill=STRESS_HUE[k%STRESS_HUE.length], id='n'+i; S.clusters.push(k);
+    if(i%4===0) sc.set(id,{kind:'rect',x:x-9,y:y-7,w:18,h:14,r:3,fill,z:2,data:{i}});
+    else sc.set(id,{kind:'circle',x,y,r:5+r()*6,fill,z:2,data:{i}});
+  }});
+  S.B={x0:-sd*2.5,y0:-sd*2.5,x1:W+sd*2.5,y1:W+sd*2.5}; S.per=per; S.buildMs=performance.now()-t0;
+}
+/** Labels anchored under each node; edges to a recent neighbour in the same cluster. */
+function stressDecorate(ctx){
+  const S=stressState(ctx), sc=ctx.scene, r=mulberry32(12), t0=performance.now();
+  sc.batch(()=>{ for(let i=0;i<S.N;i++){
+    const id='n'+i, rect=i%4===0;
+    sc.set('t'+i,{kind:'text',at:{id,dx:rect?9:0,dy:rect?26:20},text:'n'+i,size:9,align:'center',color:C.dim,minScale:1.2,z:3});
+    const j=i%S.per; if(j && r()<0.7){ const k=i-1-Math.floor(r()*Math.min(6,j)); sc.set('e'+i,{kind:'link',from:{id:'n'+k,port:'c'},to:{id,port:'c'},stroke:'rgba(148,163,184,.35)',sw:1.3,minScale:0.2,z:1}); }
+  }});
+  S.buildMs+=performance.now()-t0;
+}
+function stressPatchSome(ctx,count,seed){
+  const S=stressState(ctx), r=mulberry32(seed), sc=ctx.scene;
+  sc.batch(()=>{ for(let s=0;s<count;s++){ const id='n'+Math.floor(r()*S.N), m=sc.get(id); if(m) sc.patch(id,{x:m.x+(r()-.5)*40,y:m.y+(r()-.5)*40}); } });
+}
+/** Same marks, both indexes: build time, query time at three zoom levels, update time. */
+function stressBenchmark(ctx){
+  const S=stressState(ctx), sc=ctx.scene, B=S.B, out=[], recs=[...sc.recs.values()].filter(r=>r.b);
+  for(const kind of ['grid','quadtree']){
+    const ix=makeIndex(kind); let t0=performance.now(); for(const r of recs) ix.update(r.id,r.b); const build=performance.now()-t0; const row={kind,build};
+    for(const [label,frac] of [['close',0.02],['mid',0.15],['all',1]]){
+      const rr=mulberry32(7), W=(B.x1-B.x0)*frac, H=(B.y1-B.y0)*frac; let hitsN=0; t0=performance.now();
+      for(let i=0;i<100;i++){ const x=B.x0+rr()*(B.x1-B.x0-W), y=B.y0+rr()*(B.y1-B.y0-H); ix.query({x0:x,y0:y,x1:x+W,y1:y+H},()=>hitsN++); }
+      row[label]=(performance.now()-t0)/100; row[label+'N']=Math.round(hitsN/100);
+    }
+    const ru=mulberry32(8); t0=performance.now();
+    for(let i=0;i<2000;i++){ const r=recs[Math.floor(ru()*recs.length)], b=r.b, d=(ru()-.5)*60; ix.update(r.id,{x0:b.x0+d,y0:b.y0+d,x1:b.x1+d,y1:b.y1+d}); }
+    row.upd=(performance.now()-t0)/2000*1000; out.push(row);
+  }
+  const box=S.benchBox; if(!box) return out; box.textContent='';
+  box.appendChild(el('div','muted',`${fmtN(recs.length)} indexed marks · mean per query (marks returned)`));
+  for(const r of out){ const d=el('div'); d.style.fontFamily='ui-monospace,monospace'; d.style.fontSize='12px';
+    d.textContent=`${r.kind.padEnd(8)} build ${r.build.toFixed(0)} ms · close ${r.close.toFixed(2)} ms (${r.closeN}) · mid ${r.mid.toFixed(2)} ms (${r.midN}) · all ${r.all.toFixed(1)} ms · move ${r.upd.toFixed(1)} µs`; box.appendChild(d); }
+  return out;
+}
+
+/* ---- stages ---- */
+function stressStage1(ctx){ const S=stressState(ctx); ctx.bounds=()=>S.B; stressNodes(ctx,60); }
+function stressStage2(ctx){ stressDecorate(ctx); }
+function stressStage3(ctx){
+  const S=stressState(ctx), api=ctx.api, v=ctx.main;
+  S.presets=[['0.15× nodes only',0.15],['0.5× + edges',0.5],['1.6× + labels',1.6]];
+  api.group('Zoom thresholds');
+  api.buttons(S.presets.map(([label,s])=>[label,()=>{ const b=S.B, cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2; v.setCam(cx-v.w/2/s,cy-v.h/2/s,s); }]));
+}
+function stressStage4(ctx){
+  const S=stressState(ctx), sc=ctx.scene;
+  ctx.use({tick(){
+    if(!S.showRegion){ if(sc.has('__rgm')) sc.remove('__rgm'); return false; }
+    const g=ctx.main.region, m=sc.get('__rgm'), s=ctx.main.cam.s;
+    if(!m || m.x!==g.x0 || m.y!==g.y0 || m.w!==g.x1-g.x0) sc.set('__rgm',{kind:'rect',x:g.x0,y:g.y0,w:g.x1-g.x0,h:g.y1-g.y0,fill:'none',stroke:'rgba(245,158,11,.85)',sw:2/s,dash:[8/s,6/s],z:9,only:'main'});
+    return false;
+  }});
+  ctx.api.toggle('Show the joined region',S.showRegion,v=>{ S.showRegion=v; ctx.main.camDirty=true; });
+}
+function stressStage5(ctx){ stressPatchSome(ctx,25,5); }
+function stressStage6(ctx){ ctx.addMini(); }
+function stressStage7(ctx){ stressNodes(ctx,20000); stressDecorate(ctx); ctx.fit(null,10); ctx.refreshMini(); }
+function stressStage8(ctx){
+  const S=stressState(ctx), sc=ctx.scene, api=ctx.api;
+  const rebuild=n=>{ stressNodes(ctx,n); stressDecorate(ctx); ctx.fit(null,10); ctx.refreshMini(); S.rd&&S.rd('last build',S.buildMs.toFixed(0)+' ms'); };
+  api.group('Scene');
+  S.rd=api.readouts(['last build']); S.rd('last build',S.buildMs.toFixed(0)+' ms');
+  api.slider('Nodes (labels and edges added)',1000,100000,1000,S.N,v=>rebuild(v),v=>fmtN(v),false);
+  api.seg('Spatial index',[['grid','Grid'],['quadtree','Quadtree']],sc.indexKind,v=>{ app.index=v; sc.setIndex(v); });
+  api.toggle('Jitter 0.4% of nodes every frame (a render workload, not a simulation)',false,v=>S.jitter=v);
+  api.buttons([['Fit',()=>ctx.fit(null,10),true],['Benchmark indexes',()=>stressBenchmark(ctx)]]);
+  S.benchBox=api.box(); S.benchBox.appendChild(el('div','muted','Benchmark runs both indexes over the current marks.'));
+  api.note('Each node has a label (from 1.2× zoom) and most have an edge (from 0.2×), so 20k nodes is about 54k marks. Zoomed out you hold only nodes; edges then labels enter as you cross each threshold.');
+  api.note('Pan slowly and the HUD says <i>transform</i>: the camera is still inside the joined region, so nothing enters or exits. Cross its edge and a <i>full</i> join refills around the new view.');
+  api.note('At 100k, SVG makes one DOM element per held mark and slows sharply when zoomed out; Canvas2D and WebGL2 cope better. The HUD shows measured CPU time for your device.');
+  ctx.use({
+    tick(){ if(!S.jitter) return false; const k=Math.max(1,Math.round(S.N*0.004)), r=ctx.rand;
+      sc.batch(()=>{ for(let s=0;s<k;s++){ const id='n'+Math.floor(r()*S.N), m=sc.get(id); if(m) sc.patch(id,{x:m.x+(r()-.5)*10,y:m.y+(r()-.5)*10}); } }); return true; },
+    onDown(hit,wx,wy){ const d=hit&&hit.m.data; if(!d||d.i==null) return null; const id='n'+d.i, m=sc.get(id), ox=wx-m.x, oy=wy-m.y, x0=m.x, y0=m.y;
+      return {move:(x,y)=>sc.patch(id,{x:x-ox,y:y-oy}), cancel:()=>sc.patch(id,{x:x0,y:y0}),
+        up:(x,y,moved)=>{ if(!moved){ if(S.sel&&sc.has(S.sel)) sc.patch(S.sel,{stroke:null,sw:0}); S.sel=S.sel===id?null:id; if(S.sel) sc.patch(S.sel,{stroke:'#ffffff',sw:3}); } }}; }
+  });
+}
+const DEMO_STRESS={key:'stress',title:'Stress · 20k',seed:11,hint:'Zoom in to see edges, then labels, enter · minimap navigates',
+  blurb:'Tens of thousands of marks with level-of-detail thresholds, a second view (the minimap), runtime backend switching, and a choice of spatial index.',
+  stages:[stressStage1,stressStage2,stressStage3,stressStage4,stressStage5,stressStage6,stressStage7,stressStage8]};
+
+/* =====================================================================
+   TUTORIAL — checkpoints rebuilt from the same stage functions Explore runs
+   ===================================================================== */
+const LESSONS=[];
+const tut={lesson:null,i:0,codeMode:'step',codeText:''};
+const KW=/(\/\/.*$)|(`(?:\\.|[^`\\])*`|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")|\b(const|let|var|function|return|if|else|for|of|in|while|new|this|true|false|null|undefined|break|continue|switch|case|default|throw|try|catch|finally|class|typeof)\b|\b(\d+(?:\.\d+)?(?:e-?\d+)?)\b|\b([A-Za-z_$][\w$]*)(?=\()/g;
+function codeLine(text,cls){
+  const d=el('span','ln'+(cls?' '+cls:'')); let last=0, m; KW.lastIndex=0;
+  while((m=KW.exec(text))){
+    if(m.index>last) d.appendChild(document.createTextNode(text.slice(last,m.index)));
+    const c=m[1]?'c':m[2]?'s':m[3]?'k':m[4]?'n':'f'; d.appendChild(el('span',c,m[0])); last=m.index+m[0].length;
+    if(m[0].length===0) KW.lastIndex++;
+  }
+  if(last<text.length) d.appendChild(document.createTextNode(text.slice(last)));
+  return d;
+}
+function dedent(src){ const L=src.split('\n'); if(L.length<2) return src; const ind=Math.min(...L.slice(1).filter(l=>l.trim()).map(l=>l.match(/^ */)[0].length)); return [L[0],...L.slice(1).map(l=>l.slice(ind))].join('\n'); }
+function codeBlocks(L,i,mode){
+  const blocks=[], seen=new Map();
+  for(let k=0;k<i;k++) for(const f of L.steps[k].uses||[]) if(!seen.has(f)) seen.set(f,k);
+  if(mode==='step'){
+    const st=L.steps[i];
+    blocks.push({head:`// Step ${i+1} — ${st.title}`,src:dedent(st.run.toString()),hl:true});
+    for(const f of st.uses||[]){
+      if(seen.has(f)) blocks.push({head:`// ${f.name}() — from step ${seen.get(f)+1}`,src:dedent(f.toString()),hl:false});
+      else blocks.push({head:`// ${f.name}() — new in this step`,src:dedent(f.toString()),hl:true});
+    }
+  } else {
+    blocks.push({head:'// Engine (Scene, View, backends) lives in this file between /*@engine:start*/ and /*@engine:end*/.',src:'// Stages run in order against one DemoContext: ctx.scene, ctx.main, ctx.api, ctx.use(handlers).',hl:false});
+    const helpers=[]; for(let k=0;k<=i;k++) for(const f of L.steps[k].uses||[]) if(!helpers.includes(f)) helpers.push(f);
+    for(const f of helpers) blocks.push({head:`// helper: ${f.name}()`,src:dedent(f.toString()),hl:false});
+    for(let k=0;k<=i;k++) blocks.push({head:`// Step ${k+1} — ${L.steps[k].title}`,src:dedent(L.steps[k].run.toString()),hl:k===i});
+    blocks.push({head:'// Run the checkpoint',src:`[${L.steps.slice(0,i+1).map(s=>s.run.name).join(', ')}].forEach(stage => stage(ctx));`,hl:false});
+  }
+  return blocks;
+}
+function renderCode(){
+  const L=tut.lesson, pre=$('#code'); pre.textContent=''; const frag=document.createDocumentFragment(), text=[];
+  for(const b of codeBlocks(L,tut.i,tut.codeMode)){
+    frag.appendChild(codeLine(b.head,'hd')); text.push(b.head);
+    for(const line of b.src.split('\n')){ frag.appendChild(codeLine(line,b.hl?'hl':'')); text.push(line); }
+    frag.appendChild(codeLine('','')); text.push('');
+  }
+  pre.appendChild(frag); tut.codeText=text.join('\n');
+  document.querySelectorAll('#codeMode button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.m===tut.codeMode)));
+  $('#copyCode').textContent=tut.codeMode==='step'?'Copy step':'Copy complete (needs the engine)';
+  $('#codeNote').textContent=tut.codeMode==='step'?'The function executed for this step, and the helpers it calls.':'Every stage through this step, in order.';
+}
+function applyCam(L,st,ctx){
+  const c=st.cam||L.cam; const b=typeof c==='function'?c(ctx):c||(ctx.bounds&&ctx.bounds());
+  if(b) ctx.main.fit(b,24);
+}
+/** Rebuild step i from nothing: run 1..i-1, settle, then run step i and record its join. */
+function buildCheckpoint(){
+  const L=tut.lesson, i=tut.i, st=L.steps[i], S=tStage;
+  if(S.ctx) S.ctx.destroy(); S.ctx=null;
+  const ctx=new DemoContext({stage:S,panel:$('#tControls'),seed:L.seed,tutorial:true}); S.ctx=ctx; ctx.main.resize();
+  let err=null;
+  try{ for(let k=0;k<i;k++) L.steps[k].run(ctx); }catch(e){ err=e; console.error(e); }
+  if(!st.camAfter) applyCam(L,st,ctx);
+  ctx.frame(); const v=ctx.main; v.stats={en:0,up:0,ex:0,ms:0,mode:'idle'}; v.frameMode='idle';
+  const r0=ctx.scene.stats.resolves;
+  try{ if(!err) st.run(ctx); }catch(e){ err=e; console.error(e); }
+  if(st.camAfter) applyCam(L,st,ctx);
+  ctx.frame(); ctx.refreshMini(); if(ctx.mini) ctx.mini.frame();
+  const s=v.stats, resolved=ctx.scene.stats.resolves-r0;
+  tut.stats = err ? `This step threw: ${err.message}` :
+    v.frameMode==='idle' ? 'No marks changed in this step; it adds behaviour you can try.' :
+    `This step's join (${s.mode}): +${fmtN(s.en)} entered · ~${fmtN(s.up)} updated · −${fmtN(s.ex)} exited · ${fmtN(resolved)} records resolved in the scene.`;
+  S.hint.textContent=st.hint||'';
+  S.view.setAttribute('aria-label',`${L.title}, step ${i+1}: ${st.title}. ${st.expected||''} Arrow keys pan, plus and minus zoom, 0 fits.`);
+  wake();
+}
+function renderTutorialUI(){
+  const L=tut.lesson, i=tut.i, st=L.steps[i], n=L.steps.length;
+  $('#tLesson').textContent=`Tutorial · ${L.title}`; $('#tTitle').textContent=`${i+1}. ${st.title}`;
+  const sel=$('#tSteps'); sel.textContent=''; L.steps.forEach((s,k)=>{ const o=el('option',null,`${k+1}. ${s.title}`); o.value=String(k); sel.appendChild(o); }); sel.value=String(i);
+  const ex=$('#tExplain'); ex.textContent='';
+  ex.appendChild(elHTML('div',null,st.explain));
+  if(st.try) ex.appendChild(elHTML('div','try','<b>Try:</b> '+st.try));
+  const note=st.note&&st.note(tStage.ctx); if(note) ex.appendChild(el('p','try',note));
+  ex.appendChild(el('div','stats',tut.stats));
+  const exp=$('#tExpect'); exp.textContent=''; exp.append(el('b',null,'Expected: '),document.createTextNode(st.expected||''));
+  $('#tProg').textContent=`Step ${i+1} of ${n}`;
+  $('#tPrev').disabled=i===0;
+  $('#tNext').textContent=i===n-1?(L.demo?'Open finished example':'Go to the examples'):'Next';
+  renderCode(); announce(`${L.title}, step ${i+1} of ${n}: ${st.title}`);
+}
+function openTutorial(key,i,push=true){
+  const L=LESSONS.find(l=>l.key===key)||LESSONS[0];
+  tut.lesson=L; tut.i=clamp(Number.isFinite(i)?i:0,0,L.steps.length-1);
+  if(push) pushRoute(`#tutorial/${L.key}/${tut.i+1}`);
+  buildCheckpoint(); renderTutorialUI(); syncChips();
+}
+function tutNext(){
+  const L=tut.lesson;
+  if(tut.i<L.steps.length-1) return openTutorial(L.key,tut.i+1);
+  if(L.demo){ const def=DEMOS.find(d=>d.key===L.demo); setMode('explore',false); if(!xStage.ctx||app.xdef!==def) loadExplore(def); pushRoute('#explore/'+def.key); }
+  else { setMode('explore'); }
+}
+function wireTutorialUI(){
+  $('#tPrev').onclick=()=>{ if(tut.i>0) openTutorial(tut.lesson.key,tut.i-1); };
+  $('#tNext').onclick=tutNext;
+  $('#tReset').onclick=()=>{ buildCheckpoint(); renderTutorialUI(); };
+  $('#tCam').onclick=()=>{ const c=tStage.ctx; if(c){ applyCam(tut.lesson,tut.lesson.steps[tut.i],c); } };
+  $('#tSteps').onchange=e=>openTutorial(tut.lesson.key,+e.target.value);
+  document.querySelectorAll('#codeMode button').forEach(b=>b.onclick=()=>{ tut.codeMode=b.dataset.m; renderCode(); });
+  $('#copyCode').onclick=async()=>{ try{ await navigator.clipboard.writeText(tut.codeText); toast('Copied.'); }catch(e){ toast('Copy failed — select the code and copy it manually.'); } };
+  window.addEventListener('keydown',e=>{
+    if(app.mode!=='tutorial'||e.altKey||e.ctrlKey||e.metaKey||e.isComposing) return;
+    const t=e.target; if(isEditable(t) || (t && t.closest && t.closest('.stage,#code'))) return;
+    const sel=window.getSelection&&String(window.getSelection()); if(sel) return;
+    if(e.key==='ArrowRight'){ e.preventDefault(); tutNext(); } else if(e.key==='ArrowLeft' && tut.i>0){ e.preventDefault(); openTutorial(tut.lesson.key,tut.i-1); }
+  });
+}
+
+/* =====================================================================
+   LESSONS — each step runs a real stage function; `uses` lists the helpers
+   its code pane shows. Explore runs the same stages in the same order.
+   ===================================================================== */
+function introStage1(ctx){
+  ctx.scene.set('box',{kind:'rect',x:40,y:60,w:160,h:90,r:8,fill:'#1a2029',stroke:'#6ea8fe',sw:2,data:{drag:'box'}});
+}
+function introStage2(ctx){
+  // no coordinates of their own: both are anchored to 'box'
+  ctx.scene.set('box:title',{kind:'text',at:{id:'box',dx:12,dy:18},text:'box',size:13,weight:600});
+  ctx.scene.set('box:port',{kind:'circle',at:{id:'box',port:'r'},r:7,fill:'#6ea8fe'});
+}
+function introStage3(ctx){
+  ctx.scene.set('other',{kind:'rect',x:340,y:160,w:140,h:80,r:8,fill:'#1a2029',stroke:'#34d399',sw:2,data:{drag:'other'}});
+  ctx.scene.set('wire',{kind:'link',from:{id:'box:port'},to:{id:'other',port:'l'},route:'bezier',stroke:'#8b95a3',sw:2,arrow:true});
+}
+function introStage4(ctx){
+  ctx.scene.patch('box',{x:100});   // one write; everything that depends on 'box' re-resolves after it
+}
+function introStage5(ctx){
+  ctx.scene.batch(()=>{              // two writes, one batch: the wire resolves once, after both
+    ctx.scene.patch('box',{y:30});
+    ctx.scene.patch('other',{y:190});
+  });
+}
+function introStage6(ctx){
+  try{ ctx.scene.patch('box',{at:{id:'box:port'}}); }   // box → port → box would be a cycle
+  catch(e){ ctx.st.note=`Refused, scene unchanged: ${e.message}`; }
+}
+function introStage7(ctx){
+  ctx.use({onDown(hit,wx,wy){
+    const d=hit&&hit.m.data; if(!d||!d.drag) return null;
+    const m=ctx.scene.get(d.drag), ox=wx-m.x, oy=wy-m.y, x0=m.x, y0=m.y;
+    return { move:(x,y)=>ctx.scene.patch(d.drag,{x:x-ox,y:y-oy}),
+             cancel:()=>ctx.scene.patch(d.drag,{x:x0,y:y0}) };   // Escape or a cancelled touch puts it back
+  }});
+}
+function introStage8(ctx){
+  ctx.scene.remove('box');   // cascades to the title, the port, and the wire that depends on the port
+}
+
+const LESSONS_DEF=[
+{key:'intro',title:'How the engine works',demo:null,seed:1,cam:{x0:-20,y0:-20,x1:540,y1:300},steps:[
+  {title:'Set a record',run:introStage1,expected:'One blue-outlined rectangle.',
+   explain:'<p>Everything on screen is a <b>record</b> in the scene: a stable key (<code>box</code>) and a plain object describing a mark. <code>set</code> resolves its bounds, puts it in the spatial index, and logs its key.</p><p>On the next frame the view asks the index what is inside its region and diffs that against what the backend holds. <code>box</code> is new, so the backend gets one <b>enter</b>.</p>',
+   try:'Switch between SVG, Canvas2D and WebGL2 at the top. The record doesn’t change; only the backend does.'},
+  {title:'Anchor marks to it',run:introStage2,expected:'A title inside the box and a port on its right edge.',
+   explain:'<p><code>at: {id, port, dx, dy}</code> makes a mark derive its position from another record. The title and the port store no coordinates, so nothing has to keep them in sync.</p>'},
+  {title:'Connect two records',run:introStage3,expected:'A second box and an arrow from the port to its left side.',
+   explain:'<p>A <code>link</code> has <code>from</code> and <code>to</code> ends instead of points. The router computes its path when it resolves, so the wire depends on both the port (which depends on the box) and on <code>other</code>. That is a three-level dependency chain.</p>'},
+  {title:'Patch and propagate',run:introStage4,expected:'The box, its title, its port and the wire shift right together.',
+   explain:'<p>One <code>patch</code> changes one record. The scene then re-resolves everything that depends on it, in dependency order, each exactly once. The view sees only the logged keys, so this frame is an <b>incremental</b> join: four updates and no queries of the whole scene.</p>'},
+  {title:'Batch several writes',run:introStage5,expected:'Both boxes move; the wire follows.',
+   explain:'<p>Inside <code>scene.batch()</code>, writes are collected and resolved together when the batch ends. The wire depends on both boxes but resolves once, after both have moved. Solvers use this: one batch per tick.</p>'},
+  {title:'Cycles are refused',run:introStage6,expected:'Nothing moves.',
+   explain:'<p>Anchoring the box to its own port would make box → port → box. The scene checks for cycles <b>before</b> changing anything and throws, so the scene is exactly as it was.</p>',note:ctx=>ctx.st.note},
+  {title:'Add an interaction',run:introStage7,expected:'You can drag either box.',
+   explain:'<p><code>ctx.use()</code> registers handlers. <code>onDown</code> gets the topmost pickable mark (records with <code>data</code>) in paint order and returns a drag handler. <code>cancel</code> is separate from <code>up</code>: an aborted gesture restores the start position instead of committing.</p>',
+   try:'Drag a box, then press Escape before releasing.'},
+  {title:'Remove with cascade',run:introStage8,expected:'Only the green box remains.',
+   explain:'<p><code>remove(\'box\')</code> also removes every record that depends on it: title, port, and the wire (through the port). The view reports them as <b>exits</b> and the backend releases them.</p>'}
+]},
+{key:'flows',title:'Stocks & flows',demo:'flows',seed:1,cam:{x0:-190,y0:-10,x1:1400,y1:700},steps:[
+  {title:'Create stocks',run:flowsStage1,uses:[fStock,fVisuals],expected:'Two containers: Prey at 80 and Predators at 12.',
+   explain:'<p>A stock is one positioned rectangle plus three marks anchored to it: level bar, name and value. Stable IDs (<code>prey</code>, <code>prey:v</code>) let later code patch a part by name.</p>'},
+  {title:'Connect sources and sinks',run:flowsStage2,uses:[fCloud,fPipe],expected:'Four clouds and four pipes into and out of the stocks.',
+   explain:'<p>A pipe is a <code>link</code> from one record’s port to another’s. Its geometry is computed when it resolves, so moving a stock moves its pipes.</p>'},
+  {title:'Add valves and particles',run:flowsStage3,uses:[fValve,fParticles],expected:'A ⋈ valve halfway along each pipe, with dots along the pipe.',
+   explain:'<p>Valves anchor to <code>port:\'mid\'</code> of a pipe and dots to <code>port:{t}</code>, a fraction of arc length. The chain is stock → pipe → valve → labels, resolved in that order.</p>'},
+  {title:'Add measures and information links',run:flowsStage4,uses:[fMeasure,fInfo],expected:'Two blue measures and dashed arrows showing what each rate reads.',
+   explain:'<p>Pipes carry quantity; dashed curves carry information. Crowding (R/K) and kills (b·R·F) are derived values. Dashes now render in WebGL too, computed along each segment in the shader.</p>'},
+  {title:'Add parameters',run:flowsStage5,uses:[fControl,fSetCtrl],expected:'Five orange sliders wired to the rates they set.',
+   explain:'<p>The model’s parameters live in <code>F.P</code>, separate from the marks that show them. <code>fSetCtrl</code> changes the model value and then patches the knob, fill and label.</p>'},
+  {title:'Advance the model',run:flowsStage6,uses:[flowsAdvance,fStep,fRates],expected:'Both stocks have changed after exactly 2.0 units of model time.',
+   explain:'<p>dR/dt = a·R·(1 − R/K) − b·R·F and dF/dt = c·b·R·F − (mortality d)·F. The first term is <b>net</b> prey growth and goes negative above capacity. <code>flowsAdvance</code> adds model time to an accumulator and consumes whole 0.01 steps, keeping the remainder, so results don’t depend on the display’s refresh rate.</p>',
+   note:ctx=>{ const F=flowsState(ctx); return `Ran ${F.lastSteps} steps: t = ${F.t.toFixed(2)}, R = ${F.R.toFixed(2)}, F = ${F.F.toFixed(2)}.`; }},
+  {title:'Build the history plot',run:flowsStage7,uses:[fChart,fDrawChart],expected:'A chart with the first two units of history.',
+   explain:'<p>Both series come from the same model history. <code>fDrawChart</code> rebuilds the paths only when a sample was added, the chart moved or the model reset; otherwise it returns at once.</p>'},
+  {title:'Assemble the interactive example',run:flowsStage8,uses:[flowsReset],expected:'The full example, paused at its initial state.',
+   explain:'<p>The tick handler advances the model by elapsed time × speed × 2.4 units per second, then updates visuals. Drags have cancel paths. Reset restores parameters, stocks, history, particle phases and the accumulators.</p>',
+   try:'Tick “Running” below, then drag the capacity K knob and watch the oscillation change.'}
+]},
+{key:'gantt',title:'Gantt builder',demo:'gantt',seed:5,cam:{x0:0,y0:0,x1:1150,y1:500},steps:[
+  {title:'Define task data',run:ganttStage1,uses:[ganttAddTask,ganttRows],expected:'A list of eleven task names.',
+   explain:'<p>Tasks are plain objects (<code>{uid, name, start, dur}</code>): scheduling data. Marks are only how they are drawn. <code>ganttRows</code> compares a per-row signature and skips rows that haven’t changed.</p>'},
+  {title:'Draw the calendar',run:ganttStage2,uses:[ganttCalendar],expected:'Week headings, day numbers, weekend shading and a red baseline line.',
+   explain:'<p>Day d maps to x = 220 + 34·d and row r to y = 64 + 40·r. The red line marks the example’s fixed baseline, Monday 21 September 2026, not today.</p>'},
+  {title:'Draw bars and labels',run:ganttStage3,uses:[ganttRows],expected:'A coloured bar per task with its duration.',
+   explain:'<p>Each bar is a rectangle at absolute coordinates; its duration label is anchored to the bar’s left edge. Only the bar has to be written when a task moves.</p>'},
+  {title:'Connect dependencies',run:ganttStage4,uses:[ganttLink,ganttDeps,orthoRoute],expected:'Arrows of four types. Two constraints are visibly broken.',
+   explain:'<p>Each dependency links a side of the predecessor (S = start, F = finish) to a side of the successor: <b>FS</b>, <b>SS</b>, <b>FF</b> and <b>SF</b>. The orthogonal router leaves and enters on the correct side for each type.</p><p>Nothing is enforced yet: Data migration starts before Backend API (SS), and Docs finishes before QA pass (FF).</p>'},
+  {title:'Enforce the schedule',run:ganttStage5,uses:[depMinStart,ganttEarliest,ganttSchedule,ganttTopo],expected:'Data migration and Docs move right; everything downstream follows.',
+   explain:'<p>A forward pass in topological order raises each task to the earliest start its dependencies allow: FS ≥ pred finish, SS ≥ pred start, FF ≥ pred finish − own duration, SF ≥ pred start − own duration. Starts are only raised, so a task placed later by hand keeps its date.</p>',
+   note:ctx=>`Also tried Launch → Discovery: ${ganttState(ctx).note}`},
+  {title:'Compute float',run:ganttStage6,uses:[depMaxFinish],expected:'Zero-float tasks outlined in red.',
+   explain:'<p>A backward pass gives each task the latest finish its successors allow, using the inverse of each type. Float is that latest finish minus the <b>current</b> finish, so it measures slack against the dates as scheduled, including manual delays, not a pure earliest-start CPM.</p>'},
+  {title:'Implement editing',run:ganttStage7,uses:[ganttSelect,ganttDeleteDep,ganttDeleteTask],expected:'Bars can be dragged, resized and linked.',
+   explain:'<p>A bar drag snapshots every task first and recomputes from the snapshot on each move, so dragging back undoes the pushes and cancel restores all of it. Dropping a link on the left half of a bar means its start; the right half means its finish.</p>',
+   try:'Drag Architecture right, then back. Then drag from Integration’s right ○ onto the right half of Docs to make an FF link.'},
+  {title:'Add LOD, minimap and controls',run:ganttStage8,uses:[ganttSelUI],expected:'The finished builder with a minimap and selection panel.',
+   explain:'<p>Day numbers, day lines and labels have <code>minScale</code> thresholds, so they exit when you zoom out. The minimap is a second view with its own camera and held set over the same scene. The horizon grows when tasks run past it.</p>'}
+]},
+{key:'graph',title:'Node graph',demo:'graph',seed:3,cam:{x0:-40,y0:-40,x1:520,y1:180},steps:[
+  {title:'Build one node',run:graphStage1,uses:[nodeBody],expected:'One node card titled Time.',
+   explain:'<p>Only the body has a position. Header, header filler and title are anchored to it and share its order key plus a small offset, so the node stacks as a unit.</p>'},
+  {title:'Add typed ports',run:graphStage2,uses:[nodePorts,addNode],expected:'Time gets an output; a Sin node appears.',
+   explain:'<p>Ports carry their type in <code>data.type</code>. Colour shows the type, but colour alone isn’t validation.</p>'},
+  {title:'Connect two nodes',run:graphStage3,uses:[wire],expected:'A curved wire from Time.t to Sin.x.',
+   explain:'<p><code>wire</code> only draws; it checks nothing. The bezier ends derive from the two ports, so neither node has to know about the wire.</p>'},
+  {title:'Validate connections',run:graphStage4,uses:[canConnect,connect,reaches,incoming],cam:{x0:-40,y0:-40,x1:960,y1:640},expected:'The rest of the starter network, wired.',
+   explain:'<p><code>connect</code> checks direction, self-loops, types and cycles through one predicate before touching the target’s existing wire. This graph is acyclic by policy.</p>',
+   note:ctx=>`Tried Time.t → Output.color: ${graphState(ctx).note}`},
+  {title:'Add drag and rewire',run:graphStage5,uses:[setNodePos],cam:{x0:-40,y0:-40,x1:960,y1:640},expected:'Nodes drag; wires can be made and moved.',
+   explain:'<p>While a wire is being moved, the original stays (dimmed) until a valid drop commits. Dropping on nothing disconnects it; cancel restores it. The temporary wire turns red over an input it can’t join.</p>',
+   try:'Drag from Sin’s <i>x</i> input and press Escape before releasing.'},
+  {title:'Add selection and deletion',run:graphStage6,uses:[selectNode,bringToFront,deleteNode,syncGraph],cam:{x0:-40,y0:-40,x1:960,y1:640},expected:'Tap to select and raise a node; Delete removes it.',
+   explain:'<p>Selecting gives every part of the node a new, larger order key, so it paints and picks above its neighbours on every backend. Deleting cascades through ports to wires; <code>syncGraph</code> drops them from the domain maps.</p>'},
+  {title:'Lay out and group',run:graphStage7,uses:[graphLayout,graphFrame,parentOnDrop],camAfter:true,cam:ctx=>graphBounds(ctx),expected:'Columns by dependency depth, with a Colours frame around the two colour sources.',
+   explain:'<p>The layout only computes target positions. Nodes inside the frame are anchored to it, so dragging the frame moves frame → nodes → ports → wires, all resolved once per move.</p>',
+   try:'Drag the Colours frame, then drag a node out of it and drag the frame again.'},
+  {title:'Assemble the starter graph',run:graphStage8,camAfter:true,cam:ctx=>graphBounds(ctx),expected:'The finished editor.',
+   explain:'<p>The panel adds animated auto-layout (time-based easing), seeded Add node, and snapping. It’s an editor and layout example, not a shader evaluator.</p>'}
+]},
+{key:'force',title:'Force layout',demo:'force',seed:3,cam:{x0:-320,y0:-320,x1:320,y1:320},steps:[
+  {title:'Generate repeatable data',run:forceStage1,uses:[forceData,forceDots],expected:'Forty grey dots scattered at random.',
+   explain:'<p><code>mulberry32(3)</code> makes the same graph every time, so each step can be rebuilt exactly.</p>'},
+  {title:'Encode data as marks',run:forceStage2,uses:[forceEncode],expected:'Dots coloured by group and sized by degree.',
+   explain:'<p>Group → colour and degree → radius are patches to existing records: forty updates, no enters.</p>'},
+  {title:'Derive edges',run:forceStage3,uses:[forceEdges],expected:'Lines between connected nodes.',
+   explain:'<p>Edges are links between node records. Moving a node re-routes its edges through the scene’s dependencies.</p>'},
+  {title:'Compute one tick',run:forceStage4,uses:[forceForces,forceTick],expected:'A small first movement.',
+   explain:'<p>Repulsion between nearby pairs, springs along edges and a weak pull to the centre add up into velocities, which are damped and integrated. The solver writes every node inside one <code>batch</code>, so each edge resolves once per tick.</p>'},
+  {title:'Integrate and cool',run:forceStage5,uses:[forceTick],expected:'A settled layout after exactly 240 ticks.',
+   explain:'<p>Alpha multiplies by 0.994 each tick, so cooling is counted in ticks, not frames. At a fixed 60 Hz solver clock that is four seconds whatever the display does.</p>'},
+  {title:'Interact with the solver',run:forceStage6,uses:[forceRun],expected:'Controls below; the solver starts paused.',
+   explain:'<p><code>forceRun</code> consumes elapsed time in 1/60 s ticks, at most four per frame. Dragging pins a node and reheats; cancel returns it.</p>',
+   try:'Tick Running, then drag a node.'},
+  {title:'Scale to the full example',run:forceStage7,cam:{x0:-420,y0:-420,x1:420,y1:420},expected:'320 nodes, starting hot.',
+   explain:'<p>The small graph is removed (its edges cascade) and 320 nodes are built under the same keys. Views treat reused keys as exit + enter. WebGL speeds up drawing, but the all-pairs solver stays on the CPU; compare the HUD’s tick and join times.</p>'}
+]},
+{key:'stress',title:'Stress',demo:'stress',seed:11,steps:[
+  {title:'Generate a small seeded scene',run:stressStage1,uses:[stressNodes],camAfter:true,cam:ctx=>stressState(ctx).B,expected:'Sixty nodes in a few clusters.',
+   explain:'<p>Nodes come from a seeded generator. Every fourth node is a rectangle and the rest are circles.</p>'},
+  {title:'Add related marks',run:stressStage2,uses:[stressDecorate],cam:ctx=>stressState(ctx).B,expected:'Edges between neighbours; labels appear only when zoomed in.',
+   explain:'<p>Each node gets an anchored label and most get an edge, so mark count is about 2.7× node count.</p>'},
+  {title:'Add zoom thresholds',run:stressStage3,cam:ctx=>stressState(ctx).B,expected:'Three zoom preset buttons below.',
+   explain:'<p>Edges have <code>minScale: 0.2</code> and labels <code>1.2</code>. Crossing a threshold is a full join: marks enter or exit without changing the scene.</p>',
+   try:'Press each preset and read the HUD’s last join.'},
+  {title:'Show the joined region',run:stressStage4,cam:ctx=>stressState(ctx).B,expected:'A toggle that draws the view’s region.',
+   explain:'<p>The view joins against its screen plus a 35% margin. Panning inside it is a <i>transform</i> frame with no index query. Crossing the edge triggers a full join around the new view.</p>',
+   try:'Turn it on, zoom in, and pan slowly toward the dashed edge.'},
+  {title:'Apply a localised update',run:stressStage5,uses:[stressPatchSome],cam:ctx=>stressState(ctx).B,expected:'A few nodes shift.',
+   explain:'<p>Twenty-five seeded patches in one batch. The view visits only the logged keys; Canvas2D repaints only the damaged rectangles (tick “dirty rects” to see them).</p>'},
+  {title:'Add the minimap',run:stressStage6,cam:ctx=>stressState(ctx).B,expected:'A minimap in the corner.',
+   explain:'<p>A second View over the same scene with its own camera, filter and held set. Its viewport and region boxes are ordinary marks shown only in that view.</p>'},
+  {title:'Build 20,000 nodes',run:stressStage7,uses:[stressNodes,stressDecorate],camAfter:true,cam:ctx=>stressState(ctx).B,expected:'About 54,000 marks.',
+   explain:'<p>Same builder, bigger N. Zoomed out, only nodes are held; edges then labels enter as you zoom in.</p>'},
+  {title:'Compare backends and indexes',run:stressStage8,uses:[stressBenchmark],cam:ctx=>stressState(ctx).B,expected:'The finished stress test.',
+   explain:'<p>Switch backends on the same scene and camera, or switch the spatial index. The benchmark times both indexes on the current marks; results depend on your device.</p>'}
+]}
+];
+LESSONS.push(...LESSONS_DEF);
+
+/* =====================================================================
+   SELF-TEST (#selftest) — the review's invariants, run in this browser
+   ===================================================================== */
+function testHost(w=400,h=300){ const d=el('div'); d.style.cssText=`position:fixed;left:-10000px;top:0;width:${w}px;height:${h}px`; document.body.appendChild(d); return d; }
+function testStage(){
+  const root=testHost(500,360); root.className='stage';
+  root.innerHTML='<div class="view"></div><canvas class="dbgc"></canvas><div class="mini" hidden></div><pre class="hud"></pre><div class="hint"></div>';
+  return makeStage(root);
+}
+async function runSelfTests(){
+  const res=[], T=async(name,fn)=>{ try{ const r=await fn(); res.push([r===false?'FAIL':'ok',name,typeof r==='string'?r:'']); }catch(e){ res.push(['FAIL',name,e.message]); } };
+  const eq=(a,b,msg)=>{ if(a!==b) throw new Error(`${msg}: expected ${b}, got ${a}`); };
+  const near=(a,b,tol,msg)=>{ if(!(Math.abs(a-b)<=tol)) throw new Error(`${msg}: expected ${b}, got ${a}`); };
+  const savedBackend=app.backend;
+
+  await T('1,000-record anchor chain updates completely',()=>{
+    const sc=new Scene(); sc.set('c0',{kind:'circle',x:0,y:0,r:2});
+    for(let i=1;i<1000;i++) sc.set('c'+i,{kind:'circle',at:{id:'c'+(i-1),dx:1},r:2});
+    sc.patch('c0',{x:100}); eq(sc.recs.get('c999').x,1099,'c999.x'); eq(sc.recs.get('c500').x,600,'c500.x');
+  });
+  await T('diamond resolves its shared dependent once per batch',()=>{
+    const sc=new Scene(); sc.set('A',{kind:'rect',x:0,y:0,w:10,h:10});
+    sc.set('B',{kind:'circle',at:{id:'A',port:'l'},r:2}); sc.set('C',{kind:'circle',at:{id:'A',port:'r'},r:2});
+    sc.set('D',{kind:'link',from:{id:'B'},to:{id:'C'}});
+    const n0=sc.log.length, r0=sc.stats.resolves; sc.batch(()=>{ sc.patch('A',{x:5}); sc.patch('A',{y:5}); });
+    const logged=sc.log.slice(n0); eq(logged.filter(x=>x==='D').length,1,'D logged'); eq(sc.stats.resolves-r0,4,'resolves');
+  });
+  await T('cycles and self-dependency are refused atomically',()=>{
+    const sc=new Scene(); sc.set('A',{kind:'rect',x:3,y:4,w:10,h:10}); sc.set('B',{kind:'circle',at:{id:'A'},r:2});
+    const n0=sc.log.length, v0=sc.recs.get('A').ver; let threw=0;
+    try{ sc.patch('A',{at:{id:'B'}}); }catch(e){ threw++; }
+    try{ sc.set('S',{kind:'circle',at:{id:'S'},r:1}); }catch(e){ threw++; }
+    eq(threw,2,'throws'); eq(sc.log.length,n0,'log unchanged'); eq(sc.recs.get('A').ver,v0,'A unchanged'); eq(sc.get('A').at,undefined,'A.at'); eq(sc.has('S'),false,'S absent');
+  });
+  await T('cascading delete of a 5,000-deep chain uses a worklist',()=>{
+    const sc=new Scene(); sc.set('c0',{kind:'circle',x:0,y:0,r:1}); for(let i=1;i<5000;i++) sc.set('c'+i,{kind:'circle',at:{id:'c'+(i-1),dx:1},r:1});
+    sc.remove('c0'); eq(sc.recs.size,0,'records left');
+  });
+  await T('non-finite geometry is rejected; bad cameras are ignored',()=>{
+    const sc=new Scene(); let t=0; try{ sc.set('x',{kind:'rect',x:Infinity,y:0,w:1,h:1}); }catch(e){ t++; }
+    eq(t,1,'throws'); const v=new View(sc,testHost(),'t','canvas'); v.setCam(NaN,0,1); v.setCam(0,0,-2); eq(v.cam.s,1,'scale'); v.destroy();
+  });
+  for(const be of ['svg','canvas'].concat(GL_OK?['webgl']:[])){
+    await T(`${be}: reusing a key after clearAll or a kind change shows the new record`,()=>{
+      const sc=new Scene(), v=new View(sc,testHost(),'t',be); v.setCam(0,0,1);
+      sc.set('k',{kind:'rect',x:50,y:50,w:20,h:20,fill:'#f00'}); v.frame();
+      sc.clearAll(); sc.set('k',{kind:'circle',x:200,y:100,r:10,fill:'#0f0'}); v.frame();
+      eq(v.held.get('k').rec,sc.recs.get('k'),'held record');
+      if(be==='svg') eq(v.be.els.get('k').n.firstChild.tagName,'circle','svg child');
+      if(be==='canvas') eq(v.be.sorted()[0],'k','canvas order');
+      sc.set('k',{kind:'rect',x:10,y:10,w:5,h:5}); v.frame();
+      if(be==='svg') eq(v.be.els.get('k').n.firstChild.tagName,'rect','svg child after kind change');
+      if(be==='webgl') eq(v.be.layers[0].data[v.be.meta.get('k').s*16],0,'gl instance type');
+      v.destroy();
+    });
+    await T(`${be}: paint order matches picking, including order keys and reused slots`,()=>{
+      const sc=new Scene(), v=new View(sc,testHost(),'t',be); v.setCam(0,0,1);
+      sc.set('A',{kind:'rect',x:0,y:0,w:300,h:300,data:{}}); sc.set('B',{kind:'rect',x:0,y:0,w:300,h:300,data:{}}); v.frame();
+      eq(sc.hitTest(v,10,10).id,'B','pick newer');
+      sc.patch('A',{order:1e9}); v.frame(); eq(sc.hitTest(v,10,10).id,'A','pick by order');
+      const top=id=>{ if(be==='svg'){ const g=v.be.layers[0].g; return [...v.be.els].find(([k,e])=>e.n===g.lastChild)[0]; }
+        if(be==='canvas') return v.be.sorted().slice(-1)[0];
+        let best=null,bs=-1; for(const [k,e] of v.be.meta) if(e.s>bs){ bs=e.s; best=k; } return best; };
+      eq(top(),'A','painted top (order)');
+      sc.patch('A',{order:undefined}); sc.remove('A'); sc.set('C',{kind:'rect',x:0,y:0,w:300,h:300,data:{}}); v.frame();
+      eq(sc.hitTest(v,10,10).id,'C','pick C'); eq(top(),'C','painted top after slot reuse');
+      v.destroy();
+    });
+  }
+  await T('text and label bounds cover measured glyphs',()=>{
+    const b=markBounds({kind:'rect',w:10,h:10,label:'A very long label',labelSize:40},0,0), w=textBox('A very long label',40,600).adv;
+    if(!(b.x1-b.x0>=w)) throw new Error(`label bounds ${b.x1-b.x0} < ${w}`);
+    const t=markBounds({kind:'text',text:'WWWWWWWW',size:20},0,0); if(!(t.x1-t.x0>=textBox('WWWWWWWW',20,400).adv)) throw new Error('text bounds too small');
+  });
+  await T('grid and quadtree agree with brute force',()=>{
+    const r=mulberry32(4), g=makeIndex('grid'), q=makeIndex('quadtree'), items=new Map();
+    for(let i=0;i<2000;i++){ const x=(r()-.5)*20000, y=(r()-.5)*20000, s=r()<0.05?r()*6000:r()*60; const b={x0:x,y0:y,x1:x+s,y1:y+s}; items.set(i,b); g.update(i,b); q.update(i,b); }
+    for(let i=0;i<500;i++){ const b=items.get(i), d=(r()-.5)*3000; const nb={x0:b.x0+d,y0:b.y0-d,x1:b.x1+d,y1:b.y1-d}; items.set(i,nb); g.update(i,nb); q.update(i,nb); }
+    for(let i=0;i<200;i++){ const x=(r()-.5)*24000, y=(r()-.5)*24000, s=r()*8000, Q={x0:x,y0:y,x1:x+s,y1:y+s};
+      const want=[...items].filter(([k,b])=>hits(b,Q)).map(([k])=>k).sort((a,b)=>a-b).join();
+      const a=[],c=[]; g.query(Q,k=>a.push(k)); q.query(Q,k=>c.push(k));
+      if(a.sort((x,y)=>x-y).join()!==want) throw new Error('grid mismatch'); if(c.sort((x,y)=>x-y).join()!==want) throw new Error('quadtree mismatch'); }
+  });
+  await T('pinch keeps the world point under the fingers',()=>{ const c=pinchCam({x:0,y:0,s:1},[100,100],[120,100],2); near(c.x,40,1e-9,'x'); near(c.s,2,1e-9,'s'); });
+  await T('flows: equal elapsed time gives equal results at 30/60/144 Hz',()=>{
+    const run=hz=>{ const c={st:{}}; for(let i=0;i<hz*3;i++) flowsAdvance(c,FLOW_SIM.RATE/hz); return flowsState(c); };
+    const a=run(30), b=run(60), d=run(144); near(a.t,b.t,1e-6,'t 30/60'); near(b.t,d.t,1e-6,'t 60/144'); near(a.R,d.R,1e-6,'R'); near(a.F,d.F,1e-6,'F');
+  });
+  await T('force: solver ticks depend on elapsed time, not frame rate',()=>{
+    const run=hz=>{ const c={st:{},scene:new Scene()}; forceData(c,20,3); forceDots(c); for(let i=0;i<hz*2;i++) forceRun(c,1/hz); return forceState(c).ticks; };
+    const a=run(30), b=run(144); if(Math.abs(a-b)>1) throw new Error(`ticks ${a} vs ${b}`); return `${a} vs ${b} ticks in 2 s`;
+  });
+  await T('gantt: all four dependency types are enforced',()=>{
+    const S=testStage(), ctx=new DemoContext({stage:S,panel:el('div'),seed:5}); S.ctx=ctx;
+    for(const f of DEMO_GANTT.stages.slice(0,5)) f(ctx);
+    const G=ganttState(ctx), types=new Set();
+    for(const d of G.deps.values()){ types.add(d.type); const p=gTask(ctx,d.p), s=gTask(ctx,d.s); if(s.start<depMinStart(d.type,p,s)) throw new Error(`${d.type} ${p.name}→${s.name} violated`); }
+    eq([...types].sort().join(),'FF,FS,SF,SS','types');
+    eq(gTask(ctx,G.tasks[5].uid).start,14,'SS pushed'); eq(G.tasks[8].start,33,'FF pushed');
+    if(ganttLink(ctx,G.tasks[9].uid,G.tasks[0].uid,'SS').ok) throw new Error('loop accepted');
+    ctx.destroy(); S.root.remove();
+  });
+  await T('gantt: float from the backward pass',()=>{
+    const c={st:{}}; const a=ganttAddTask(c,'A',0,5), b=ganttAddTask(c,'B',5,3), x=ganttAddTask(c,'C',0,2), d=ganttAddTask(c,'D',0,4);
+    ganttLink(c,a.uid,b.uid,'FS'); ganttLink(c,a.uid,d.uid,'FF'); ganttState(c).enforce=true; ganttSchedule(c);
+    eq(a.float,0,'A'); eq(b.float,0,'B'); eq(x.float,6,'C'); eq(d.start,1,'D start (FF)'); eq(d.float,3,'D float');
+  });
+  await T('graph: typed ports refuse a mismatch without touching the old wire',()=>{
+    const S=testStage(), ctx=new DemoContext({stage:S,panel:el('div'),seed:3}); S.ctx=ctx;
+    for(const f of DEMO_GRAPH.stages.slice(0,4)) f(ctx);
+    const before=incoming(ctx,'n:out:i0').id, v=connect(ctx,'n:time:o0','n:out:i0');
+    eq(v.ok,false,'ok'); eq(incoming(ctx,'n:out:i0').id,before,'old wire');
+    ctx.destroy(); S.root.remove();
+  });
+  await T('graph: cancelling a rewire (handler and pointercancel) restores the wire',()=>{
+    const S=testStage(), ctx=new DemoContext({stage:S,panel:el('div'),seed:3}); S.ctx=ctx;
+    for(const f of DEMO_GRAPH.stages.slice(0,6)) f(ctx);
+    ctx.main.resize(); ctx.main.setCam(-50,-50,1); ctx.frame();
+    const w=incoming(ctx,'n:sin:i0').id, port=ctx.scene.recs.get('n:sin:i0');
+    const h=ctx.down(port,port.x,port.y); h.move(port.x+200,port.y+200); h.cancel(); ctx.frame();
+    eq(incoming(ctx,'n:sin:i0').id,w,'wire kept'); eq(ctx.scene.get(w).opacity,1,'opacity'); eq(ctx.scene.has('tmp'),false,'tmp removed');
+    const [sx,sy]=ctx.main.toScreen(port.x,port.y), r=S.view.getBoundingClientRect(), o={pointerId:7,bubbles:true,clientX:r.left+sx,clientY:r.top+sy,button:0,pointerType:'mouse'};
+    S.view.dispatchEvent(new PointerEvent('pointerdown',o)); S.view.dispatchEvent(new PointerEvent('pointermove',{...o,clientX:o.clientX+150}));
+    eq(ctx.scene.has('tmp'),true,'drag started from the port');
+    S.view.dispatchEvent(new PointerEvent('pointercancel',o)); ctx.frame();
+    eq(incoming(ctx,'n:sin:i0').id,w,'wire kept after pointercancel'); eq(ctx.scene.has('tmp'),false,'tmp after pointercancel');
+    ctx.destroy(); S.root.remove();
+  });
+  await T('timers and views are released on dispose',()=>{
+    const S=testStage(), ctx=new DemoContext({stage:S,panel:el('div')}); let ran=false; ctx.later(()=>{ ran=true; },0); const sc=ctx.scene; ctx.destroy();
+    return new Promise(res=>setTimeout(()=>{ if(ran) res(false); else { eq(sc.views.size,0,'views'); S.root.remove(); res(true); } },30));
+  });
+  if(GL_OK) await T('webgl: context loss falls back to Canvas2D',()=>{
+    app.backend='webgl'; const S=testStage(), ctx=new DemoContext({stage:S,panel:el('div')}); S.ctx=ctx;
+    ctx.scene.set('a',{kind:'rect',x:0,y:0,w:10,h:10}); ctx.frame(); ctx.main.be.gl.getExtension('WEBGL_lose_context').loseContext();
+    return new Promise(res=>setTimeout(()=>{ const ok=ctx.main.backendName==='canvas'; ctx.destroy(); S.root.remove(); app.backend=savedBackend; syncBackendButtons(); res(ok); },80));
+  });
+  app.backend=savedBackend;
+  const fails=res.filter(r=>r[0]!=='ok').length;
+  $('#stOut').textContent=`${res.length-fails} passed, ${fails} failed\n\n`+res.map(r=>`${r[0].padEnd(4)} ${r[1]}${r[2]?'  — '+r[2]:''}`).join('\n');
+  window.__selftest={pass:res.length-fails,fail:fails,results:res};
+  return window.__selftest;
+}
+
+/* =====================================================================
+   BOOT — registry, modes, routes
+   ===================================================================== */
+DEMO_GANTT.camera=ctx=>{ const v=ctx.main, s=clamp(v.w/1500,0.3,1); v.setCam(-10,-10,s); };
+const DEMOS=[DEMO_FLOWS,DEMO_GANTT,DEMO_GRAPH,DEMO_FORCE,DEMO_STRESS];
+const xStage=makeStage($('#xStage')), tStage=makeStage($('#tStage'));
+function activeStage(){ return app.mode==='tutorial'?tStage:app.mode==='explore'?xStage:null; }
+const HOW=`<details><summary>How the core works</summary><ol>
+<li><b>Store</b> — each mark is a keyed record with a version. Marks can depend on others through <code>at</code>, <code>from</code> and <code>to</code>. Writes inside <code>scene.batch()</code> resolve together: every affected record once, after what it depends on. Cycles are refused before anything changes; removing a record removes its dependents.</li>
+<li><b>Index</b> — each mark’s bounds (including text, measured) live in a uniform grid or a loose quadtree.</li>
+<li><b>Join</b> — per view, per frame: <code>index.query(region)</code> filtered by zoom (LOD) is diffed against what the backend holds, giving <b>enter / update / exit</b> and dirty rects. When only records changed, only the logged keys are visited.</li>
+<li><b>Backend</b> — implements those three calls plus <code>commit</code>. SVG keeps elements, Canvas2D repaints damaged rects found through the index, and WebGL2 packs instance buffers.</li>
+<li><b>Order</b> — every backend and the hit test use one paint order: z, then the <code>order</code> key, then creation order. Text sorts like any other mark.</li></ol></details>`;
+const FOOT='Drag empty space to pan; wheel or pinch to zoom. With the canvas focused, arrow keys pan, + and − zoom, 0 fits, and Escape cancels a drag. The Tutorial tab walks through how each example is built.';
+
+function pushRoute(h){ if(location.hash!==h){ try{ history.pushState(null,'',h); }catch(e){} } }
+function loadExplore(def,push=true){
+  const S=xStage; if(S.ctx) S.ctx.destroy(); S.ctx=null;
+  const panel=$('#panel'); panel.textContent=''; panel.append(el('h2',null,def.title),el('p',null,def.blurb));
+  const body=el('div'); panel.appendChild(body);
+  const ctx=new DemoContext({stage:S,panel:body,seed:def.seed}); S.ctx=ctx; app.xdef=def; ctx.main.resize();
+  try{ for(const stage of def.stages) stage(ctx); }catch(e){ console.error(e); toast('This example failed to build: '+e.message); }
+  panel.append(elHTML('div',null,HOW),el('p','foot',FOOT));
+  S.hint.textContent=def.hint||'';
+  S.view.setAttribute('aria-label',`${def.title}. ${def.blurb} Arrow keys pan, plus and minus zoom, 0 fits.`);
+  if(def.camera) def.camera(ctx); else ctx.fit(null,30);
+  ctx.refreshMini();
+  if(push) pushRoute('#explore/'+def.key);
+  syncChips(); wake();
+}
+function buildChips(){
+  const nav=$('#demos'); nav.textContent='';
+  const list=app.mode==='tutorial'?LESSONS.map(l=>[l.key,l.key==='intro'?'Intro':l.title]):DEMOS.map(d=>[d.key,d.title]);
+  for(const [k,t] of list){ const b=el('button','chip',t); b.type='button'; b.dataset.k=k;
+    b.onclick=()=>{ if(app.mode==='tutorial') openTutorial(k,0); else loadExplore(DEMOS.find(d=>d.key===k)); }; nav.appendChild(b); }
+  syncChips();
+}
+function syncChips(){
+  const cur=app.mode==='tutorial'?(tut.lesson&&tut.lesson.key):(app.xdef&&app.xdef.key);
+  document.querySelectorAll('#demos .chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===cur)));
+}
+function setMode(mode,push=true,auto=true){
+  app.mode=mode;
+  $('#explore').hidden=mode!=='explore'; $('#tutorial').hidden=mode!=='tutorial'; $('#selftest').hidden=mode!=='selftest';
+  document.body.classList.toggle('scroll',mode!=='explore');
+  document.querySelectorAll('#modes button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
+  buildChips();
+  if(mode==='tutorial'){ if(!tut.lesson){ if(auto) openTutorial('intro',0,push); } else { ensureBackend(tStage); tStage.ctx&&tStage.ctx.main.resize(); if(push) pushRoute(`#tutorial/${tut.lesson.key}/${tut.i+1}`); } }
+  if(mode==='explore'){ if(!xStage.ctx){ if(auto) loadExplore(DEMOS[0],push); } else { ensureBackend(xStage); xStage.ctx.main.resize(); if(push) pushRoute('#explore/'+app.xdef.key); } }
+  syncChips(); wake();
+}
+function parseRoute(h){
+  const p=(h||'').replace(/^#/,'').split('/');
+  if(p[0]==='tutorial') return {mode:'tutorial',key:p[1],step:(parseInt(p[2],10)||1)-1};
+  if(p[0]==='selftest') return {mode:'selftest'};
+  return {mode:'explore',key:p[0]==='explore'?p[1]:p[0]};
+}
+function applyRoute(r){
+  if(r.mode==='selftest'){ setMode('selftest',false,false); runSelfTests(); return; }
+  if(r.mode==='tutorial'){ setMode('tutorial',false,false); const L=LESSONS.find(l=>l.key===r.key)||LESSONS[0]; if(tut.lesson!==L||tut.i!==r.step) openTutorial(L.key,r.step,false); else syncChips(); return; }
+  const def=DEMOS.find(d=>d.key===r.key)||DEMOS[0]; setMode('explore',false,false); if(app.xdef!==def||!xStage.ctx) loadExplore(def,false);
+}
+window.addEventListener('popstate',()=>applyRoute(parseRoute(location.hash)));
+document.querySelectorAll('#modes button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+document.querySelectorAll('#backends button').forEach(b=>{ if(b.dataset.b==='webgl'&&!GL_OK){ b.disabled=true; b.title='WebGL2 is not available in this browser'; } b.onclick=()=>setBackend(b.dataset.b); });
+syncBackendButtons();
+$('#dbg').onchange=e=>{ app.dbg=e.target.checked; wake(); };
+$('#hudT').onchange=e=>document.body.classList.toggle('nohud',!e.target.checked);
+for(const p of [$('#panel'),$('#tControls')]) for(const ev of ['input','click','change']) p.addEventListener(ev,wake);
+wireTutorialUI();
+applyRoute(parseRoute(location.hash));
+</script>
+</body>
+</html>
